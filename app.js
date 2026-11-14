@@ -1,7 +1,7 @@
 /* ============================================================
    Chess Test Net — main application
    Fully integrated: human-like AI, stealth anti-cheat, sound,
-   particles, Elo, settings, smooth UX.
+   particles, Elo, settings (120+), smooth UX.
    ============================================================ */
 
 (() => {
@@ -22,12 +22,12 @@
     maxAccuracy: settings.get("acMaxAcc")
   });
   const elo = new window.EloSystem({
-    startingElo: settings.get("startElo"),
+    startingElo: settings.get("startEloWhite"),
     kFactor: settings.get("kFactor")
   });
 
   // -----------------------------------------------------------------
-  // Sound (Web Audio API, no external files)
+  // Sound (Web Audio API)
   // -----------------------------------------------------------------
   let audioCtx = null;
   let soundEnabled = false;
@@ -51,6 +51,7 @@
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       const now = audioCtx.currentTime;
+      const vol = settings.get("masterVolume") || 0.8;
 
       const cfg = {
         move:   { f: 260, f2: 330, t: 0.06, type: "sine" },
@@ -65,6 +66,7 @@
         ui:     { f: 900, t: 0.03, type: "sine" }
       }[type] || { f: 400, t: 0.05, type: "sine" };
 
+      const v = vol * ((cfg.type === "sine" && type === "move") ? settings.get("moveSoundVolume") : 1);
       if (cfg.f3) {
         osc.frequency.setValueAtTime(cfg.f, now);
         osc.frequency.linearRampToValueAtTime(cfg.f2, now + cfg.t / 3);
@@ -75,7 +77,7 @@
       } else {
         osc.frequency.setValueAtTime(cfg.f, now);
       }
-      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.setValueAtTime(0.1 * v, now);
       gain.gain.exponentialRampToValueAtTime(0.0005, now + cfg.t);
       osc.start(now);
       osc.stop(now + cfg.t + 0.05);
@@ -128,11 +130,11 @@
   // -----------------------------------------------------------------
   function init() {
     applySettingsToUI();
+    setupSettingsTabs();
     newGame();
     render();
     ui.setFooter("Ready", "Anti-cheat: active · stealth mode");
 
-    // Enable sound on first interaction
     document.body.addEventListener("click", () => { soundEnabled = true; ensureAudio(); }, { once: true });
     document.body.addEventListener("keydown", () => { soundEnabled = true; ensureAudio(); }, { once: true });
 
@@ -153,11 +155,456 @@
     document.getElementById("btnCloseSettings2").addEventListener("click", closeSettings);
     document.getElementById("modalBackdrop").addEventListener("click", closeSettings);
     document.getElementById("btnResetStats").addEventListener("click", resetStats);
+    document.getElementById("btnResetSettings").addEventListener("click", resetSettingsAll);
     document.getElementById("btnExport").addEventListener("click", exportData);
+    document.getElementById("btnImport").addEventListener("click", importData);
 
     document.getElementById("btnCloseGameOver").addEventListener("click", closeGameOver);
     document.getElementById("goBackdrop").addEventListener("click", closeGameOver);
     document.getElementById("btnPlayAgain").addEventListener("click", () => { closeGameOver(); newGame(); });
+  }
+
+  // -----------------------------------------------------------------
+  // Settings tabs
+  // -----------------------------------------------------------------
+  function setupSettingsTabs() {
+    const tabs = document.querySelectorAll(".tab-btn");
+    const panes = document.querySelectorAll(".tab-pane");
+    tabs.forEach(btn => {
+      btn.addEventListener("click", () => {
+        tabs.forEach(t => t.classList.remove("active"));
+        panes.forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+        playTone("ui");
+      });
+    });
+  }
+
+  function openSettings() {
+    applySettingsToUI();
+    ui.openModal("settingsModal");
+  }
+
+  function closeSettings() { ui.closeModal("settingsModal"); }
+
+  function applySettingsToUI() {
+    // Sync every setting ID to the modal inputs
+    const setInput = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!val;
+      else el.value = val;
+    };
+    const setLabel = (id, val, unit) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val + unit;
+    };
+
+    setInput("smGameMode", settings.gameMode);
+    setInput("smResignAllowed", settings.resignAllowed);
+    setInput("smDrawOffersAllowed", settings.drawOffersAllowed);
+    setInput("smPromotionPrompt", settings.promotionPrompt);
+    setInput("smAutoQueenPromotion", settings.autoQueenPromotion);
+    setInput("smMoveSound", settings.moveSound !== false);
+    setInput("smTimeControl", settings.timeControl);
+    setInput("smCustomTimeMinutes", settings.customTimeMinutes);
+    setInput("smIncrementSeconds", settings.incrementSeconds);
+    setInput("smDelaySeconds", settings.delaySeconds());
+    setInput("smAutoFlagOnTimeout", settings.autoFlagOnTimeout);
+
+    setInput("smBoardTheme", settings.boardTheme);
+    setInput("smPieceSet", settings.pieceSet);
+    setInput("smSquareSize", settings.squareSize);
+    setInput("smBoardBorderWidth", settings.boardBorderWidth);
+    setInput("smCoordinatesShown", settings.coordinatesShown);
+    setInput("smLastMoveHighlight", settings.lastMoveHighlight);
+    setInput("smSelectedSquareHighlight", settings.selectedSquareHighlight);
+    setInput("smLegalMoveHighlights", settings.legalMoveHighlights);
+    setInput("smCheckHighlight", settings.checkHighlight);
+    setInput("smAnimationSpeed", settings.animationSpeed);
+    setInput("smPieceDropShadow", settings.pieceDropShadow);
+    setInput("smBoardReflection", settings.boardReflection);
+    setInput("smGlowIntensity", settings.glowIntensity);
+    setInput("smGlassmorphismOpacity", settings.glassmorphismOpacity);
+    setInput("smBackgroundBlur", settings.backgroundBlur);
+    setInput("smFloatingParticles", settings.floatingParticles);
+    setInput("smConfettiOnGameEnd", settings.confettiOnGameEnd);
+    setInput("smCursorTrail", settings.cursorTrail);
+    setInput("smHoverEffects", settings.hoverEffects);
+    setInput("smClickRipple", settings.clickRipple);
+    setInput("smSmoothPieceMovement", settings.smoothPieceMovement);
+    setInput("smMoveTrail", settings.moveTrail);
+
+    setInput("smAutoMoveEnabled", settings.autoMoveEnabled);
+    setInput("smHumanizeEnabled", settings.humanizeEnabled);
+    setInput("smBotStrength", settings.botStrength);
+    setInput("smAiPersonality", settings.aiPersonality);
+    setInput("smMoveTimeMin", settings.moveTimeMin);
+    setInput("smMoveTimeMax", settings.moveTimeMax);
+    setInput("smMistakeFrequency", settings.mistakeFrequency);
+    setInput("smBlunderFrequency", settings.blunderFrequency);
+    setInput("smTimePressureSimulation", settings.timePressureSimulation);
+
+    setInput("smAntiCheatEnabled", settings.antiCheatEnabled);
+    setInput("smStealthMode", settings.stealthMode);
+    setInput("smAcMinTime", settings.acMinTime);
+    setInput("smAcMaxAcc", settings.acMaxAcc);
+    setInput("smPerfectStreakLimit", settings.perfectStreakLimit);
+    setInput("smTrustScoreVisible", settings.trustScoreVisible);
+    setInput("smHumanizeTiming", settings.humanizeTiming);
+    setInput("smOccasionalBlunders", settings.occasionalBlunders);
+    setInput("smTimePressureBehavior", settings.timePressureBehavior);
+    setInput("smMouseMovementSimulation", settings.mouseMovementSimulation);
+    setInput("smClickTimingVariance", settings.clickTimingVariance);
+    setInput("smMoveHesitation", settings.moveHesitation);
+    setInput("smDeepThinkPauses", settings.deepThinkPauses);
+    setInput("smUndetectableMode", settings.undetectableMode);
+
+    setInput("smSoundEnabled", settings.soundEnabled);
+    setInput("smMasterVolume", settings.masterVolume);
+    setInput("smMoveSoundVolume", settings.moveSoundVolume);
+    setInput("smCaptureSoundVolume", settings.captureSoundVolume);
+    setInput("smCastleSoundVolume", settings.castleSoundVolume);
+    setInput("smPromotionSoundVolume", settings.promotionSoundVolume);
+    setInput("smCheckSoundVolume", settings.checkSoundVolume);
+    setInput("smGameOverSoundVolume", settings.gameOverSoundVolume);
+    setInput("smUIClickSound", settings.uiclickSound);
+    setInput("smSoundPack", settings.soundPack);
+    setInput("smBackgroundMusic", settings.backgroundMusic);
+    setInput("smMusicVolume", settings.musicVolume);
+    setInput("smMusicTrack", settings.musicTrack);
+
+    setInput("smStartEloWhite", settings.startEloWhite);
+    setInput("smStartEloBlack", settings.startEloBlack);
+    setInput("smKFactor", settings.kFactor);
+    setInput("smEloDisplay", settings.eloDisplay);
+    setInput("smEloChangeAnimation", settings.eloChangeAnimation);
+    setInput("smRatingHistory", settings.ratingHistory);
+    setInput("smBestEloTracking", settings.bestEloTracking);
+    setInput("smWinStreakTracking", settings.winStreakTracking);
+    setInput("smLossStreakTracking", settings.lossStreakTracking);
+    setInput("smDrawStreakTracking", settings.drawStreakTracking);
+    setInput("smPerformanceRating", settings.performanceRating);
+    setInput("smAccuracyTracking", settings.accuracyTracking);
+
+    setInput("smTimePreset", settings.timePreset);
+    setInput("smLowTimeWarningSeconds", settings.lowTimeWarningSeconds);
+    setInput("smLowTimePulse", settings.lowTimePulse);
+    setInput("smClockDisplayFormat", settings.clockDisplayFormat);
+    setInput("smClockColor", settings.clockColor);
+    setInput("smClockShadow", settings.clockShadow);
+    setInput("smShowOpponentClock", settings.showOpponentClock);
+    setInput("smTimePenaltyPerMove", settings.timePenaltyPerMove);
+
+    setInput("smToastNotifications", settings.toastNotifications);
+    setInput("smGameOverAlert", settings.gameOverAlert);
+    setInput("smMoveMadeAlert", settings.moveMadeAlert);
+    setInput("smCheckAlert", settings.checkAlert);
+    setInput("smLowTimeAlert", settings.lowTimeAlert);
+    setInput("smSoundNotifications", settings.soundNotifications);
+    setInput("smDesktopNotifications", settings.desktopNotifications);
+    setInput("smNotificationDuration", settings.notificationDuration);
+    setInput("smNotificationPosition", settings.notificationPosition);
+
+    setInput("smEngineAnalysisDepth", settings.engineAnalysisDepth);
+    setInput("smShowEvaluationBar", settings.showEvaluationBar);
+    setInput("smShowBestMoveLine", settings.showBestMoveLine);
+    setInput("smShowPrincipalVariation", settings.showPrincipalVariation);
+    setInput("smAutoFlipBoard", settings.autoFlipBoard);
+    setInput("smCoordinatesStyle", settings.coordinatesStyle);
+    setInput("smMoveListFont", settings.moveListFont);
+    setInput("smMoveListDensity", settings.moveListDensity);
+    setInput("smCompactMode", settings.compactMode);
+    setInput("smDarkMode", settings.darkMode);
+    setInput("smHighContrast", settings.highContrast);
+    setInput("smReducedMotion", settings.reducedMotion);
+    setInput("smKeyboardShortcuts", settings.keyboardShortcuts);
+    setInput("smExportFormat", settings.exportFormat);
+    setInput("smAutoSaveGames", settings.autoSaveGames);
+    setInput("smLocalOnlyMode", settings.localOnlyMode);
+    setInput("smDebugMode", settings.debugMode);
+
+    // Range labels
+    setLabel("smValMoveTimeMin", settings.moveTimeMin, "s");
+    setLabel("smValMoveTimeMax", settings.moveTimeMax, "s");
+    setLabel("smValSquareSize", settings.squareSize, "px");
+    setLabel("smValBoardBorderWidth", settings.boardBorderWidth, "px");
+    setLabel("smValAnimationSpeed", settings.animationSpeed, "x");
+    setLabel("smValGlowIntensity", Math.round(settings.glowIntensity * 100), "%");
+    setLabel("smValGlassmorphismOpacity", Math.round(settings.glassmorphismOpacity * 100), "%");
+    setLabel("smValBackgroundBlur", settings.backgroundBlur, "px");
+    setLabel("smValAcMinTime", settings.acMinTime, "s");
+    setLabel("smValAcMaxAcc", settings.acMaxAcc, "%");
+    setLabel("smValMistakeFrequency", Math.round(settings.mistakeFrequency * 100), "%");
+    setLabel("smValBlunderFrequency", Math.round(settings.blunderFrequency * 100), "%");
+    setLabel("smValMasterVolume", Math.round(settings.masterVolume * 100), "%");
+    setLabel("smValMoveSoundVolume", Math.round(settings.moveSoundVolume * 100), "%");
+    setLabel("smValCaptureSoundVolume", Math.round(settings.captureSoundVolume * 100), "%");
+    setLabel("smValCastleSoundVolume", Math.round(settings.castleSoundVolume * 100), "%");
+    setLabel("smValPromotionSoundVolume", Math.round(settings.promotionSoundVolume * 100), "%");
+    setLabel("smValCheckSoundVolume", Math.round(settings.checkSoundVolume * 100), "%");
+    setLabel("smValGameOverSoundVolume", Math.round(settings.gameOverSoundVolume * 100), "%");
+    setLabel("smValMusicVolume", Math.round(settings.musicVolume * 100), "%");
+    setLabel("smValEngineAnalysisDepth", settings.engineAnalysisDepth);
+
+    // Range input listeners for labels
+    wireRangeLabel("smMoveTimeMin", "smValMoveTimeMin", "s");
+    wireRangeLabel("smMoveTimeMax", "smValMoveTimeMax", "s");
+    wireRangeLabel("smSquareSize", "smValSquareSize", "px");
+    wireRangeLabel("smBoardBorderWidth", "smValBoardBorderWidth", "px");
+    wireRangeLabel("smAnimationSpeed", "smValAnimationSpeed", "x");
+    wireRangeLabel("smGlowIntensity", "smValGlowIntensity", "%");
+    wireRangeLabel("smGlassmorphismOpacity", "smValGlassmorphismOpacity", "%");
+    wireRangeLabel("smBackgroundBlur", "smValBackgroundBlur", "px");
+    wireRangeLabel("smAcMinTime", "smValAcMinTime", "s");
+    wireRangeLabel("smAcMaxAcc", "smValAcMaxAcc", "%");
+    wireRangeLabel("smMistakeFrequency", "smValMistakeFrequency", "%");
+    wireRangeLabel("smBlunderFrequency", "smValBlunderFrequency", "%");
+    wireRangeLabel("smMasterVolume", "smValMasterVolume", "%");
+    wireRangeLabel("smMoveSoundVolume", "smValMoveSoundVolume", "%");
+    wireRangeLabel("smCaptureSoundVolume", "smValCaptureSoundVolume", "%");
+    wireRangeLabel("smCastleSoundVolume", "smValCastleSoundVolume", "%");
+    wireRangeLabel("smPromotionSoundVolume", "smValPromotionSoundVolume", "%");
+    wireRangeLabel("smCheckSoundVolume", "smValCheckSoundVolume", "%");
+    wireRangeLabel("smGameOverSoundVolume", "smValGameOverSoundVolume", "%");
+    wireRangeLabel("smMusicVolume", "smValMusicVolume", "%");
+    wireRangeLabel("smEngineAnalysisDepth", "smValEngineAnalysisDepth");
+  }
+
+  function wireRangeLabel(inputId, labelId, unit) {
+    const el = document.getElementById(inputId);
+    const lab = document.getElementById(labelId);
+    if (!el || !lab) return;
+    el.addEventListener("input", () => {
+      const v = el.value;
+      lab.textContent = v + (unit || "");
+      if (unit === "%") lab.textContent = Math.round(parseFloat(v) * 100) + "%";
+    });
+  }
+
+  function readFromModal() {
+    const g = (id) => document.getElementById(id).value;
+    const gc = (id) => document.getElementById(id).checked;
+    return {
+      gameMode: g("smGameMode"),
+      resignAllowed: gc("smResignAllowed"),
+      drawOffersAllowed: gc("smDrawOffersAllowed"),
+      promotionPrompt: gc("smPromotionPrompt"),
+      autoQueenPromotion: gc("smAutoQueenPromotion"),
+      moveSound: gc("smMoveSound"),
+      timeControl: g("smTimeControl"),
+      customTimeMinutes: parseInt(g("smCustomTimeMinutes")) || 10,
+      incrementSeconds: parseInt(g("smIncrementSeconds")) || 0,
+      delaySeconds: parseInt(g("smDelaySeconds")) || 0,
+      autoFlagOnTimeout: gc("smAutoFlagOnTimeout"),
+
+      boardTheme: g("smBoardTheme"),
+      pieceSet: g("smPieceSet"),
+      squareSize: parseInt(g("smSquareSize")) || 60,
+      boardBorderWidth: parseInt(g("smBoardBorderWidth")) || 14,
+      coordinatesShown: gc("smCoordinatesShown"),
+      lastMoveHighlight: gc("smLastMoveHighlight"),
+      selectedSquareHighlight: gc("smSelectedSquareHighlight"),
+      legalMoveHighlights: gc("smLegalMoveHighlights"),
+      checkHighlight: gc("smCheckHighlight"),
+      animationSpeed: parseFloat(g("smAnimationSpeed")) || 1,
+      pieceDropShadow: gc("smPieceDropShadow"),
+      boardReflection: gc("smBoardReflection"),
+      glowIntensity: parseFloat(g("smGlowIntensity")) || 0.5,
+      glassmorphismOpacity: parseFloat(g("smGlassmorphismOpacity")) || 0.72,
+      backgroundBlur: parseInt(g("smBackgroundBlur")) || 20,
+      floatingParticles: gc("smFloatingParticles"),
+      confettiOnGameEnd: gc("smConfettiOnGameEnd"),
+      cursorTrail: gc("smCursorTrail"),
+      hoverEffects: gc("smHoverEffects"),
+      clickRipple: gc("smClickRipple"),
+      smoothPieceMovement: gc("smSmoothPieceMovement"),
+      moveTrail: gc("smMoveTrail"),
+
+      autoMoveEnabled: gc("smAutoMoveEnabled"),
+      humanizeEnabled: gc("smHumanizeEnabled"),
+      botStrength: g("smBotStrength"),
+      aiPersonality: g("smAiPersonality"),
+      moveTimeMin: parseFloat(g("smMoveTimeMin")) || 1.5,
+      moveTimeMax: parseFloat(g("smMoveTimeMax")) || 5,
+      mistakeFrequency: parseFloat(g("smMistakeFrequency")) || 0.25,
+      blunderFrequency: parseFloat(g("smBlunderFrequency")) || 0.05,
+      timePressureSimulation: gc("smTimePressureSimulation"),
+
+      antiCheatEnabled: gc("smAntiCheatEnabled"),
+      stealthMode: gc("smStealthMode"),
+      acMinTime: parseFloat(g("smAcMinTime")) || 0.5,
+      acMaxAcc: parseInt(g("smAcMaxAcc")) || 95,
+      perfectStreakLimit: parseInt(g("smPerfectStreakLimit")) || 14,
+      trustScoreVisible: gc("smTrustScoreVisible"),
+      humanizeTiming: gc("smHumanizeTiming"),
+      occasionalBlunders: gc("smOccasionalBlunders"),
+      timePressureBehavior: gc("smTimePressureBehavior"),
+      mouseMovementSimulation: gc("smMouseMovementSimulation"),
+      clickTimingVariance: gc("smClickTimingVariance"),
+      moveHesitation: gc("smMoveHesitation"),
+      deepThinkPauses: gc("smDeepThinkPauses"),
+      undetectableMode: gc("smUndetectableMode"),
+
+      soundEnabled: gc("smSoundEnabled"),
+      masterVolume: parseFloat(g("smMasterVolume")) || 0.8,
+      moveSoundVolume: parseFloat(g("smMoveSoundVolume")) || 0.6,
+      captureSoundVolume: parseFloat(g("smCaptureSoundVolume")) || 0.8,
+      castleSoundVolume: parseFloat(g("smCastleSoundVolume")) || 0.7,
+      promotionSoundVolume: parseFloat(g("smPromotionSoundVolume")) || 0.9,
+      checkSoundVolume: parseFloat(g("smCheckSoundVolume")) || 0.9,
+      gameOverSoundVolume: parseFloat(g("smGameOverSoundVolume")) || 1,
+      uiclickSound: gc("smUIClickSound"),
+      soundPack: g("smSoundPack"),
+      backgroundMusic: gc("smBackgroundMusic"),
+      musicVolume: parseFloat(g("smMusicVolume")) || 0.3,
+      musicTrack: g("smMusicTrack"),
+
+      startEloWhite: parseInt(g("smStartEloWhite")) || 1500,
+      startEloBlack: parseInt(g("smStartEloBlack")) || 1500,
+      kFactor: parseInt(g("smKFactor")) || 32,
+      eloDisplay: gc("smEloDisplay"),
+      eloChangeAnimation: gc("smEloChangeAnimation"),
+      ratingHistory: gc("smRatingHistory"),
+      bestEloTracking: gc("smBestEloTracking"),
+      winStreakTracking: gc("smWinStreakTracking"),
+      lossStreakTracking: gc("smLossStreakTracking"),
+      drawStreakTracking: gc("smDrawStreakTracking"),
+      performanceRating: gc("smPerformanceRating"),
+      accuracyTracking: gc("smAccuracyTracking"),
+
+      timePreset: g("smTimePreset"),
+      lowTimeWarningSeconds: parseInt(g("smLowTimeWarningSeconds")) || 30,
+      lowTimePulse: gc("smLowTimePulse"),
+      clockDisplayFormat: g("smClockDisplayFormat"),
+      clockColor: g("smClockColor"),
+      clockShadow: gc("smClockShadow"),
+      showOpponentClock: gc("smShowOpponentClock"),
+      timePenaltyPerMove: parseInt(g("smTimePenaltyPerMove")) || 0,
+
+      toastNotifications: gc("smToastNotifications"),
+      gameOverAlert: gc("smGameOverAlert"),
+      moveMadeAlert: gc("smMoveMadeAlert"),
+      checkAlert: gc("smCheckAlert"),
+      lowTimeAlert: gc("smLowTimeAlert"),
+      soundNotifications: gc("smSoundNotifications"),
+      desktopNotifications: gc("smDesktopNotifications"),
+      notificationDuration: parseInt(g("smNotificationDuration")) || 3000,
+      notificationPosition: g("smNotificationPosition"),
+
+      engineAnalysisDepth: parseInt(g("smEngineAnalysisDepth")) || 3,
+      showEvaluationBar: gc("smShowEvaluationBar"),
+      showBestMoveLine: gc("smShowBestMoveLine"),
+      showPrincipalVariation: gc("smShowPrincipalVariation"),
+      autoFlipBoard: gc("smAutoFlipBoard"),
+      coordinatesStyle: g("smCoordinatesStyle"),
+      moveListFont: g("smMoveListFont"),
+      moveListDensity: g("smMoveListDensity"),
+      compactMode: gc("smCompactMode"),
+      darkMode: gc("smDarkMode"),
+      highContrast: gc("smHighContrast"),
+      reducedMotion: gc("smReducedMotion"),
+      keyboardShortcuts: gc("smKeyboardShortcuts"),
+      exportFormat: g("smExportFormat"),
+      autoSaveGames: gc("smAutoSaveGames"),
+      localOnlyMode: gc("smLocalOnlyMode"),
+      debugMode: gc("smDebugMode")
+    };
+  }
+
+  function saveSettings() {
+    const next = readFromModal();
+    Object.entries(next).forEach(([k, v]) => settings.set(k, v));
+
+    gameMode = next.gameMode;
+    soundEnabled = true;
+
+    ai.setOptions({
+      strength: next.botStrength,
+      humanize: next.humanizeEnabled,
+      minTime: next.moveTimeMin * 1000,
+      maxTime: next.moveTimeMax * 1000,
+      personality: next.aiPersonality
+    });
+    antiCheat.enabled = next.antiCheatEnabled;
+    antiCheat.minMoveTime = next.acMinTime * 1000;
+    antiCheat.maxAccuracy = next.acMaxAcc;
+    antiCheat.perfectStreakLimit = next.perfectStreakLimit;
+    elo.setOptions({ startingElo: next.startEloWhite, kFactor: next.kFactor });
+
+    timeWhite = settings.timeSeconds();
+    timeBlack = settings.timeSeconds();
+    ui.setClock("white", timeWhite);
+    ui.setClock("black", timeBlack);
+    ui.setElo("white", elo.ratingWhite);
+    ui.setElo("black", elo.ratingBlack);
+
+    closeSettings();
+    newGame();
+    ui.toast("Settings saved — " + Object.keys(next).length + " options", "ok");
+    playTone("ui");
+  }
+
+  function resetStats() {
+    if (!confirm("Reset Elo and stats?")) return;
+    stats = { games: 0, wins: 0, losses: 0, draws: 0, bestElo: 0 };
+    localStorage.setItem("chess_testnet_stats", JSON.stringify(stats));
+    newGame();
+    ui.toast("Stats reset", "ok");
+  }
+
+  function resetSettingsAll() {
+    if (!confirm("Reset ALL settings to defaults?")) return;
+    settings.reset();
+    closeSettings();
+    newGame();
+    ui.toast("Settings reset to defaults", "ok");
+  }
+
+  function exportData() {
+    const data = {
+      settings: settings.values,
+      stats,
+      eloHistory: elo.history,
+      antiCheat: antiCheat.status(),
+      at: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "chess_testnet_export.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    ui.toast("Exported game data", "ok");
+  }
+
+  function importData() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.settings) {
+            Object.entries(data.settings).forEach(([k, v]) => settings.set(k, v));
+            applySettingsToUI();
+            ui.toast("Settings imported", "ok");
+          }
+          if (data.stats) { stats = data.stats; localStorage.setItem("chess_testnet_stats", JSON.stringify(stats)); }
+          newGame();
+        } catch (err) {
+          ui.toast("Import failed", "err");
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   }
 
   // -----------------------------------------------------------------
@@ -195,14 +642,8 @@
   }
 
   function applyMove(move, playedByHuman = true) {
-    const isCapture = chess.square(move.to) !== "." && chess.square(move.to) !== chess.square(move.from);
-    // Determine capture BEFORE applying (we check target)
     const targetBefore = chess.square(move.to);
-    const isCastle = move.from !== undefined && Math.abs(move.from - move.to) === 2 &&
-      chess.square(move.from) && chess.square(move.from).toLowerCase() === "k";
-    const isPromo = !!move.promotion;
-
-    playTone(isCapture ? "capture" : isCastle ? "castle" : isPromo ? "promote" : "move");
+    playTone(targetBefore !== "." ? "capture" : "move");
 
     const result = chess.move(move);
     if (!result) return false;
@@ -337,7 +778,6 @@
     const botOn = gameMode === "pvb" && !humanTurn && settings.get("autoMoveEnabled");
 
     if (botOn) {
-      // Count complexity for human-like thinking time
       let complexity = 0;
       for (let i = 0; i < 64; i++) {
         const p = chess.square(i);
@@ -357,10 +797,7 @@
       ui.setFooter("Bot thinking...", "Anti-cheat: active · stealth mode");
       autoMoveTimer = setTimeout(() => {
         antiCheat.startMove();
-        const pick = ai.pick(chess, {
-          moveCount,
-          timeLeft
-        });
+        const pick = ai.pick(chess, { moveCount, timeLeft });
         if (pick && pick.move) {
           const legal = chess.moves({ verbose: true });
           const ac = antiCheat.validate(pick.move, legal, true);
@@ -411,14 +848,17 @@
       if (legal.length) {
         const chosen = legal[0];
 
-        // Pawn promotion
         let promotion = chosen.promotion;
         const movingPiece = chess.square(ui.selectedSquare);
         const toRank = 8 - rankOf(idx);
         if (movingPiece && movingPiece.toLowerCase() === "p" && (toRank === 8 || toRank === 1)) {
-          promotion = prompt("Promote pawn to:\nq = Queen\nr = Rook\nb = Bishop\nn = Knight\n\nEnter: q/r/b/n", "q");
-          if (!promotion || !"qrbn".includes(promotion.toLowerCase())) promotion = "q";
-          promotion = promotion.toLowerCase();
+          if (settings.get("autoQueenPromotion")) {
+            promotion = "q";
+          } else if (settings.get("promotionPrompt")) {
+            promotion = prompt("Promote pawn to:\nq = Queen\nr = Rook\nb = Bishop\nn = Knight\n\nEnter: q/r/b/n", "q");
+            if (!promotion || !"qrbn".includes(promotion.toLowerCase())) promotion = "q";
+            promotion = promotion.toLowerCase();
+          }
         }
 
         antiCheat.startMove();
@@ -480,9 +920,11 @@
 
     playTone(result === "white" ? "win" : result === "black" ? "lose" : "draw");
 
-    if (result === "white") fireConfetti(["#6366f1", "#22d3ee", "#22c55e", "#fbbf24"]);
-    else if (result === "black") fireConfetti(["#ef4444", "#f59e0b", "#6366f1"]);
-    else fireConfetti(["#94a3b8", "#6366f1", "#22d3ee"]);
+    if (settings.get("confettiOnGameEnd")) {
+      if (result === "white") fireConfetti(["#6366f1", "#22d3ee", "#22c55e", "#fbbf24"]);
+      else if (result === "black") fireConfetti(["#ef4444", "#f59e0b", "#6366f1"]);
+      else fireConfetti(["#94a3b8", "#6366f1", "#22d3ee"]);
+    }
 
     openGameOver(result, titles[result], rating);
 
@@ -509,109 +951,6 @@
   function render() {
     ui.render(chess, settings.get("boardTheme"));
   }
-
-  // -----------------------------------------------------------------
-  // Settings
-  // -----------------------------------------------------------------
-  function applySettingsToUI() {
-    ui.applyToModal(settings.values);
-    document.getElementById("valMoveTimeMin").textContent = settings.get("moveTimeMin") + "s";
-    document.getElementById("valMoveTimeMax").textContent = settings.get("moveTimeMax") + "s";
-    document.getElementById("smValMoveTimeMin").textContent = settings.get("moveTimeMin") + "s";
-    document.getElementById("smValMoveTimeMax").textContent = settings.get("moveTimeMax") + "s";
-    document.getElementById("smValAcMinTime").textContent = settings.get("acMinTime") + "s";
-    document.getElementById("smValAcMaxAcc").textContent = settings.get("acMaxAcc") + "%";
-  }
-
-  function openSettings() {
-    ui.applyToModal(settings.values);
-    ui.openModal("settingsModal");
-  }
-
-  function closeSettings() { ui.closeModal("settingsModal"); }
-
-  function saveSettings() {
-    const next = ui.readFromModal();
-    Object.entries(next).forEach(([k, v]) => settings.set(k, v));
-
-    gameMode = next.gameMode;
-    soundEnabled = true;
-
-    ai.setOptions({
-      strength: next.botStrength,
-      humanize: next.humanizeEnabled,
-      minTime: next.moveTimeMin * 1000,
-      maxTime: next.moveTimeMax * 1000,
-      personality: next.aiPersonality || "balanced"
-    });
-    antiCheat.enabled = next.antiCheatEnabled;
-    antiCheat.minMoveTime = next.acMinTime * 1000;
-    antiCheat.maxAccuracy = next.acMaxAcc;
-    elo.setOptions({ startingElo: next.startElo, kFactor: next.kFactor });
-
-    timeWhite = settings.timeSeconds();
-    timeBlack = settings.timeSeconds();
-    ui.setClock("white", timeWhite);
-    ui.setClock("black", timeBlack);
-    ui.setElo("white", elo.ratingWhite);
-    ui.setElo("black", elo.ratingBlack);
-
-    closeSettings();
-    newGame();
-    ui.toast("Settings saved", "ok");
-    playTone("ui");
-  }
-
-  function resetStats() {
-    if (!confirm("Reset Elo and stats?")) return;
-    stats = { games: 0, wins: 0, losses: 0, draws: 0, bestElo: 0 };
-    localStorage.setItem("chess_testnet_stats", JSON.stringify(stats));
-    newGame();
-    ui.toast("Stats reset", "ok");
-  }
-
-  function exportData() {
-    const data = {
-      settings: settings.values,
-      stats,
-      eloHistory: elo.history,
-      antiCheat: antiCheat.status(),
-      at: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "chess_testnet_export.json";
-    a.click();
-    URL.revokeObjectURL(url);
-    ui.toast("Exported game data", "ok");
-  }
-
-  // -----------------------------------------------------------------
-  // Game over modal
-  // -----------------------------------------------------------------
-  function openGameOver(result, title, rating) {
-    document.getElementById("goTitle").textContent = title;
-    document.getElementById("goResult").textContent = result.toUpperCase();
-    document.getElementById("goDetails").textContent =
-      `White ${rating.white.before} → ${rating.white.after} (${rating.white.change > 0 ? "+" : ""}${rating.white.change})   •   Black ${rating.black.before} → ${rating.black.after} (${rating.black.change > 0 ? "+" : ""}${rating.black.change})`;
-
-    document.getElementById("goNameWhite").textContent = gameMode === "pvb" ? "You" : "White";
-    document.getElementById("goNameBlack").textContent = gameMode === "pvb" ? "Bot" : "Black";
-
-    const wPos = rating.white.change > 0; const bPos = rating.black.change > 0;
-    document.getElementById("goEloWhite").textContent = (rating.white.change > 0 ? "+" : "") + rating.white.change;
-    document.getElementById("goEloWhite").className = "go-elo-change " + (wPos ? "pos" : "neg");
-    document.getElementById("goEloBlack").textContent = (rating.black.change > 0 ? "+" : "") + rating.black.change;
-    document.getElementById("goEloBlack").className = "go-elo-change " + (bPos ? "pos" : "neg");
-    document.getElementById("goNewEloWhite").textContent = rating.white.after;
-    document.getElementById("goNewEloBlack").textContent = rating.black.after;
-
-    ui.openModal("gameOverModal");
-  }
-
-  function closeGameOver() { ui.closeModal("gameOverModal"); }
 
   // -----------------------------------------------------------------
   // Helpers

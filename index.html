@@ -196,137 +196,222 @@
         <h2>Settings</h2>
         <button class="btn-icon-close" id="btnCloseSettings">✕</button>
       </div>
-      <div class="modal-body">
-        <div class="settings-section">
-          <div class="section-title">Game</div>
-          <div class="setting-row">
-            <label>Game mode</label>
-            <select id="smGameMode">
-              <option value="pvb">You vs Bot</option>
-              <option value="pvp">You vs You (hotseat)</option>
-            </select>
-          </div>
-          <div class="setting-row">
-            <label>Time control</label>
-            <select id="smTimeControl">
-              <option value="none">None</option>
-              <option value="bullet">Bullet (2 min)</option>
-              <option value="blitz">Blitz (5 min)</option>
-              <option value="rapid">Rapid (15 min)</option>
-              <option value="classical">Classical (30 min)</option>
-            </select>
-          </div>
-          <div class="setting-row">
-            <label>Increment (sec)</label>
-            <input type="number" id="smIncrement" min="0" max="60" value="0" />
-          </div>
-          <div class="setting-row">
-            <label>Board theme</label>
-            <select id="smBoardTheme">
-              <option value="green">Green</option>
-              <option value="blue">Blue</option>
-              <option value="wood">Wood</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
-          <div class="setting-row">
-            <label>Piece set</label>
-            <select id="smPieceSet">
-              <option value="classic">Classic</option>
-              <option value="modern">Modern</option>
-            </select>
-          </div>
+      <div class="modal-body settings-scroll">
+        <!-- Category tabs -->
+        <div class="settings-tabs">
+          <button class="tab-btn active" data-tab="gameplay">Gameplay</button>
+          <button class="tab-btn" data-tab="board">Board &amp; Visuals</button>
+          <button class="tab-btn" data-tab="ai">AI &amp; Auto-Move</button>
+          <button class="tab-btn" data-tab="stealth">Anti-Cheat &amp; Stealth</button>
+          <button class="tab-btn" data-tab="sound">Sound &amp; Audio</button>
+          <button class="tab-btn" data-tab="elo">Elo &amp; Ratings</button>
+          <button class="tab-btn" data-tab="time">Time Controls</button>
+          <button class="tab-btn" data-tab="notify">Notifications</button>
+          <button class="tab-btn" data-tab="advanced">Advanced</button>
+          <button class="tab-btn" data-tab="danger">Danger Zone</button>
         </div>
 
-        <div class="settings-section">
-          <div class="section-title">Auto-Move Bot</div>
-          <div class="setting-row">
-            <label>Enabled</label>
-            <div class="toggle-wrap">
-              <input type="checkbox" id="smAutoMoveEnabled" checked />
-              <span class="toggle"></span>
+        <div class="tab-content">
+          <!-- ===== GAMEPLAY ===== -->
+          <div class="tab-pane active" id="tab-gameplay">
+            <div class="settings-section">
+              <div class="section-title">General</div>
+              <div class="setting-row"><label>Game mode</label><select id="smGameMode"><option value="pvb">You vs Bot</option><option value="pvp">You vs You (hotseat)</option><option value="puzzle">Puzzle Mode</option><option value="engine">Engine vs Engine</option></select></div>
+              <div class="setting-row"><label>Resign allowed</label><div class="toggle-wrap"><input type="checkbox" id="smResignAllowed" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Draw offers allowed</label><div class="toggle-wrap"><input type="checkbox" id="smDrawOffersAllowed" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Promotion prompt</label><div class="toggle-wrap"><input type="checkbox" id="smPromotionPrompt" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Auto-queen promotion</label><div class="toggle-wrap"><input type="checkbox" id="smAutoQueenPromotion" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Move sound</label><div class="toggle-wrap"><input type="checkbox" id="smMoveSound" checked /><span class="toggle"></span></div></div>
+            </div>
+            <div class="settings-section">
+              <div class="section-title">Time Control</div>
+              <div class="setting-row"><label>Time control</label><select id="smTimeControl"><option value="none">None</option><option value="bullet">Bullet (2 min)</option><option value="blitz">Blitz (5 min)</option><option value="rapid">Rapid (15 min)</option><option value="classical">Classical (30 min)</option><option value="custom">Custom</option></select></div>
+              <div class="setting-row"><label>Base time (minutes)</label><input type="number" id="smCustomTimeMinutes" min="1" max="180" value="10" /></div>
+              <div class="setting-row"><label>Increment (seconds)</label><input type="number" id="smIncrementSeconds" min="0" max="60" value="0" /></div>
+              <div class="setting-row"><label>Delay (seconds)</label><input type="number" id="smDelaySeconds" min="0" max="30" value="0" /></div>
+              <div class="setting-row"><label>Auto-flag on timeout</label><div class="toggle-wrap"><input type="checkbox" id="smAutoFlagOnTimeout" checked /><span class="toggle"></span></div></div>
             </div>
           </div>
-          <div class="setting-row">
-            <label>Humanize (mistakes + timing)</label>
-            <div class="toggle-wrap">
-              <input type="checkbox" id="smHumanizeEnabled" checked />
-              <span class="toggle"></span>
+
+          <!-- ===== BOARD & VISUALS ===== -->
+          <div class="tab-pane" id="tab-board">
+            <div class="settings-section">
+              <div class="section-title">Board Theme</div>
+              <div class="setting-row"><label>Theme</label><select id="smBoardTheme"><option value="green">Green</option><option value="blue">Blue</option><option value="wood">Wood</option><option value="dark">Dark</option><option value="marble">Marble</option><option value="neon">Neon</option><option value="cat">Cat</option><option value="space">Space</option><option value="ocean">Ocean</option><option value="fire">Fire</option><option value="ice">Ice</option><option value="candy">Candy</option><option value="retro">Retro</option><option value="minimal">Minimal</option></select></div>
+              <div class="setting-row"><label>Piece set</label><select id="smPieceSet"><option value="classic">Classic</option><option value="modern">Modern</option><option value="fantasy">Fantasy</option><option value="minimal">Minimal</option><option value="pixel">Pixel</option><option value="marble">Marble</option><option value="glass">Glass</option><option value="neon">Neon</option></select></div>
+              <div class="setting-row"><label>Square size (px)</label><input type="range" id="smSquareSize" min="40" max="100" step="5" value="60" /><span class="setting-value" id="smValSquareSize">60px</span></div>
+              <div class="setting-row"><label>Board border width</label><input type="range" id="smBoardBorderWidth" min="8" max="24" step="2" value="14" /><span class="setting-value" id="smValBoardBorderWidth">14px</span></div>
+              <div class="setting-row"><label>Coordinates shown</label><div class="toggle-wrap"><input type="checkbox" id="smCoordinatesShown" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Last move highlight</label><div class="toggle-wrap"><input type="checkbox" id="smLastMoveHighlight" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Selected square highlight</label><div class="toggle-wrap"><input type="checkbox" id="smSelectedSquareHighlight" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Legal move highlights</label><div class="toggle-wrap"><input type="checkbox" id="smLegalMoveHighlights" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Check highlight</label><div class="toggle-wrap"><input type="checkbox" id="smCheckHighlight" checked /><span class="toggle"></span></div></div>
+            </div>
+            <div class="settings-section">
+              <div class="section-title">Visual Effects</div>
+              <div class="setting-row"><label>Animation speed</label><input type="range" id="smAnimationSpeed" min="0.25" max="3" step="0.25" value="1" /><span class="setting-value" id="smValAnimationSpeed">1.0x</span></div>
+              <div class="setting-row"><label>Piece drop shadow</label><div class="toggle-wrap"><input type="checkbox" id="smPieceDropShadow" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Board reflection</label><div class="toggle-wrap"><input type="checkbox" id="smBoardReflection" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Glow intensity</label><input type="range" id="smGlowIntensity" min="0" max="1" step="0.1" value="0.5" /><span class="setting-value" id="smValGlowIntensity">50%</span></div>
+              <div class="setting-row"><label>Glassmorphism opacity</label><input type="range" id="smGlassmorphismOpacity" min="0.2" max="0.95" step="0.05" value="0.72" /><span class="setting-value" id="smValGlassmorphismOpacity">72%</span></div>
+              <div class="setting-row"><label>Background blur (px)</label><input type="range" id="smBackgroundBlur" min="0" max="40" step="2" value="20" /><span class="setting-value" id="smValBackgroundBlur">20px</span></div>
+              <div class="setting-row"><label>Floating particles</label><div class="toggle-wrap"><input type="checkbox" id="smFloatingParticles" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Confetti on game end</label><div class="toggle-wrap"><input type="checkbox" id="smConfettiOnGameEnd" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Cursor trail</label><div class="toggle-wrap"><input type="checkbox" id="smCursorTrail" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Hover effects</label><div class="toggle-wrap"><input type="checkbox" id="smHoverEffects" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Click ripple</label><div class="toggle-wrap"><input type="checkbox" id="smClickRipple" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Smooth piece movement</label><div class="toggle-wrap"><input type="checkbox" id="smSmoothPieceMovement" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Move trail</label><div class="toggle-wrap"><input type="checkbox" id="smMoveTrail" /><span class="toggle"></span></div></div>
             </div>
           </div>
-          <div class="setting-row">
-            <label>Min move time (s)</label>
-            <input type="range" id="smMoveTimeMin" min="0.5" max="10" step="0.5" value="1.5" />
-            <span class="setting-value" id="smValMoveTimeMin">1.5s</span>
-          </div>
-          <div class="setting-row">
-            <label>Max move time (s)</label>
-            <input type="range" id="smMoveTimeMax" min="1" max="30" step="0.5" value="5" />
-            <span class="setting-value" id="smValMoveTimeMax">5s</span>
-          </div>
-          <div class="setting-row">
-            <label>Bot strength</label>
-            <select id="smBotStrength">
-              <option value="random">Random</option>
-              <option value="weak">Weak</option>
-              <option value="medium">Medium</option>
-              <option value="strong">Strong</option>
-            </select>
-          </div>
-          <div class="setting-row">
-            <label>AI personality</label>
-            <select id="smAiPersonality">
-              <option value="balanced">Balanced</option>
-              <option value="aggressive">Aggressive</option>
-              <option value="positional">Positional</option>
-            </select>
-          </div>
-        </div>
 
-        <div class="settings-section">
-          <div class="section-title">Anti-Cheat</div>
-          <div class="setting-row">
-            <label>Enabled</label>
-            <div class="toggle-wrap">
-              <input type="checkbox" id="smAntiCheatEnabled" checked />
-              <span class="toggle"></span>
+          <!-- ===== AI & AUTO-MOVE ===== -->
+          <div class="tab-pane" id="tab-ai">
+            <div class="settings-section">
+              <div class="section-title">Auto-Move Bot</div>
+              <div class="setting-row"><label>Enabled</label><div class="toggle-wrap"><input type="checkbox" id="smAutoMoveEnabled" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Humanize (mistakes + timing)</label><div class="toggle-wrap"><input type="checkbox" id="smHumanizeEnabled" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Bot strength</label><select id="smBotStrength"><option value="random">Random</option><option value="weak">Weak</option><option value="medium">Medium</option><option value="strong">Strong</option><option value="master">Master</option><option value="grandmaster">Grandmaster</option></select></div>
+              <div class="setting-row"><label>AI personality</label><select id="smAiPersonality"><option value="balanced">Balanced</option><option value="aggressive">Aggressive</option><option value="positional">Positional</option><option value="tactical">Tactical</option><option value="chaotic">Chaotic</option></select></div>
+              <div class="setting-row"><label>Min move time (s)</label><input type="range" id="smMoveTimeMin" min="0.5" max="10" step="0.5" value="1.5" /><span class="setting-value" id="smValMoveTimeMin">1.5s</span></div>
+              <div class="setting-row"><label>Max move time (s)</label><input type="range" id="smMoveTimeMax" min="1" max="30" step="0.5" value="5" /><span class="setting-value" id="smValMoveTimeMax">5s</span></div>
+              <div class="setting-row"><label>Mistake frequency</label><input type="range" id="smMistakeFrequency" min="0" max="1" step="0.05" value="0.25" /><span class="setting-value" id="smValMistakeFrequency">25%</span></div>
+              <div class="setting-row"><label>Blunder frequency</label><input type="range" id="smBlunderFrequency" min="0" max="1" step="0.05" value="0.05" /><span class="setting-value" id="smValBlunderFrequency">5%</span></div>
+              <div class="setting-row"><label>Time pressure simulation</label><div class="toggle-wrap"><input type="checkbox" id="smTimePressureSimulation" checked /><span class="toggle"></span></div></div>
             </div>
           </div>
-          <div class="setting-row">
-            <label>Min move time (s)</label>
-            <input type="range" id="smAcMinTime" min="0" max="2" step="0.1" value="0.3" />
-            <span class="setting-value" id="smValAcMinTime">0.3s</span>
-          </div>
-          <div class="setting-row">
-            <label>Max accuracy (%)</label>
-            <input type="range" id="smAcMaxAcc" min="60" max="100" step="1" value="98" />
-            <span class="setting-value" id="smValAcMaxAcc">98%</span>
-          </div>
-          <div class="setting-row ac-note">
-            Moves faster than the minimum or with suspiciously high accuracy are flagged.
-            Humanization adds natural variance so your play stays undetectable.
-          </div>
-        </div>
 
-        <div class="settings-section">
-          <div class="section-title">Ratings</div>
-          <div class="setting-row">
-            <label>Your starting Elo</label>
-            <input type="number" id="smStartElo" min="100" max="3000" value="1500" />
+          <!-- ===== ANTI-CHEAT & STEALTH ===== -->
+          <div class="tab-pane" id="tab-stealth">
+            <div class="settings-section">
+              <div class="section-title">Anti-Cheat / Stealth</div>
+              <div class="setting-row"><label>Enabled</label><div class="toggle-wrap"><input type="checkbox" id="smAntiCheatEnabled" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Stealth mode (undetectable)</label><div class="toggle-wrap"><input type="checkbox" id="smStealthMode" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Min move time (s)</label><input type="range" id="smAcMinTime" min="0" max="2" step="0.1" value="0.5" /><span class="setting-value" id="smValAcMinTime">0.5s</span></div>
+              <div class="setting-row"><label>Max accuracy (%)</label><input type="range" id="smAcMaxAcc" min="60" max="100" step="1" value="95" /><span class="setting-value" id="smValAcMaxAcc">95%</span></div>
+              <div class="setting-row"><label>Perfect streak limit</label><input type="number" id="smPerfectStreakLimit" min="3" max="50" value="14" /></div>
+              <div class="setting-row"><label>Trust score visible</label><div class="toggle-wrap"><input type="checkbox" id="smTrustScoreVisible" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Humanize timing</label><div class="toggle-wrap"><input type="checkbox" id="smHumanizeTiming" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Occasional blunders</label><div class="toggle-wrap"><input type="checkbox" id="smOccasionalBlunders" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Time pressure behavior</label><div class="toggle-wrap"><input type="checkbox" id="smTimePressureBehavior" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Mouse movement simulation</label><div class="toggle-wrap"><input type="checkbox" id="smMouseMovementSimulation" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Click timing variance</label><div class="toggle-wrap"><input type="checkbox" id="smClickTimingVariance" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Move hesitation</label><div class="toggle-wrap"><input type="checkbox" id="smMoveHesitation" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Deep think pauses</label><div class="toggle-wrap"><input type="checkbox" id="smDeepThinkPauses" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Undetectable mode</label><div class="toggle-wrap"><input type="checkbox" id="smUndetectableMode" checked /><span class="toggle"></span></div></div>
+            </div>
           </div>
-          <div class="setting-row">
-            <label>K-factor</label>
-            <input type="number" id="smKFactor" min="10" max="64" value="32" />
-            <span class="setting-hint">Higher = faster Elo changes</span>
-          </div>
-        </div>
 
-        <div class="settings-section">
-          <div class="section-title">Danger zone</div>
-          <button class="btn btn-danger btn-block" id="btnResetStats">Reset Elo &amp; stats</button>
-          <button class="btn btn-block" id="btnExport">Export game data (JSON)</button>
+          <!-- ===== SOUND & AUDIO ===== -->
+          <div class="tab-pane" id="tab-sound">
+            <div class="settings-section">
+              <div class="section-title">Audio</div>
+              <div class="setting-row"><label>Sound enabled</label><div class="toggle-wrap"><input type="checkbox" id="smSoundEnabled" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Master volume</label><input type="range" id="smMasterVolume" min="0" max="1" step="0.1" value="0.8" /><span class="setting-value" id="smValMasterVolume">80%</span></div>
+              <div class="setting-row"><label>Move sound volume</label><input type="range" id="smMoveSoundVolume" min="0" max="1" step="0.1" value="0.6" /><span class="setting-value" id="smValMoveSoundVolume">60%</span></div>
+              <div class="setting-row"><label>Capture sound volume</label><input type="range" id="smCaptureSoundVolume" min="0" max="1" step="0.1" value="0.8" /><span class="setting-value" id="smValCaptureSoundVolume">80%</span></div>
+              <div class="setting-row"><label>Castle sound volume</label><input type="range" id="smCastleSoundVolume" min="0" max="1" step="0.1" value="0.7" /><span class="setting-value" id="smValCastleSoundVolume">70%</span></div>
+              <div class="setting-row"><label>Promotion sound volume</label><input type="range" id="smPromotionSoundVolume" min="0" max="1" step="0.1" value="0.9" /><span class="setting-value" id="smValPromotionSoundVolume">90%</span></div>
+              <div class="setting-row"><label>Check sound volume</label><input type="range" id="smCheckSoundVolume" min="0" max="1" step="0.1" value="0.9" /><span class="setting-value" id="smValCheckSoundVolume">90%</span></div>
+              <div class="setting-row"><label>Game over sound volume</label><input type="range" id="smGameOverSoundVolume" min="0" max="1" step="0.1" value="1" /><span class="setting-value" id="smValGameOverSoundVolume">100%</span></div>
+              <div class="setting-row"><label>UI click sound</label><div class="toggle-wrap"><input type="checkbox" id="smUIClickSound" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Sound pack</label><select id="smSoundPack"><option value="classic">Classic</option><option value="electronic">Electronic</option><option value="orchestral">Orchestral</option><option value="retro">Retro</option><option value="minimal">Minimal</option></select></div>
+              <div class="setting-row"><label>Background music</label><div class="toggle-wrap"><input type="checkbox" id="smBackgroundMusic" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Music volume</label><input type="range" id="smMusicVolume" min="0" max="1" step="0.1" value="0.3" /><span class="setting-value" id="smValMusicVolume">30%</span></div>
+              <div class="setting-row"><label>Music track</label><select id="smMusicTrack"><option value="ambient">Ambient</option><option value="lofi">Lo-fi</option><option value="classical">Classical</option><option value="electronic">Electronic</option><option value="jazz">Jazz</option></select></div>
+            </div>
+          </div>
+
+          <!-- ===== ELO & RATINGS ===== -->
+          <div class="tab-pane" id="tab-elo">
+            <div class="settings-section">
+              <div class="section-title">Ratings</div>
+              <div class="setting-row"><label>Starting Elo — White</label><input type="number" id="smStartEloWhite" min="100" max="3000" value="1500" /></div>
+              <div class="setting-row"><label>Starting Elo — Black</label><input type="number" id="smStartEloBlack" min="100" max="3000" value="1500" /></div>
+              <div class="setting-row"><label>K-factor</label><input type="number" id="smKFactor" min="10" max="64" value="32" /><span class="setting-hint">Higher = faster Elo changes</span></div>
+              <div class="setting-row"><label>Elo display</label><div class="toggle-wrap"><input type="checkbox" id="smEloDisplay" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Elo change animation</label><div class="toggle-wrap"><input type="checkbox" id="smEloChangeAnimation" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Rating history</label><div class="toggle-wrap"><input type="checkbox" id="smRatingHistory" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Best Elo tracking</label><div class="toggle-wrap"><input type="checkbox" id="smBestEloTracking" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Win streak tracking</label><div class="toggle-wrap"><input type="checkbox" id="smWinStreakTracking" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Loss streak tracking</label><div class="toggle-wrap"><input type="checkbox" id="smLossStreakTracking" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Draw streak tracking</label><div class="toggle-wrap"><input type="checkbox" id="smDrawStreakTracking" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Performance rating</label><div class="toggle-wrap"><input type="checkbox" id="smPerformanceRating" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Accuracy tracking</label><div class="toggle-wrap"><input type="checkbox" id="smAccuracyTracking" checked /><span class="toggle"></span></div></div>
+            </div>
+          </div>
+
+          <!-- ===== TIME CONTROLS ===== -->
+          <div class="tab-pane" id="tab-time">
+            <div class="settings-section">
+              <div class="section-title">Clocks</div>
+              <div class="setting-row"><label>Time preset</label><select id="smTimePreset"><option value="bullet">Bullet</option><option value="blitz">Blitz</option><option value="rapid">Rapid</option><option value="classical">Classical</option></select></div>
+              <div class="setting-row"><label>Low time warning (seconds)</label><input type="number" id="smLowTimeWarningSeconds" min="5" max="120" value="30" /></div>
+              <div class="setting-row"><label>Low time pulse</label><div class="toggle-wrap"><input type="checkbox" id="smLowTimePulse" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Clock display format</label><select id="smClockDisplayFormat"><option value="mm:ss">MM:SS</option><option value="h:mm:ss">H:MM:SS</option><option value="seconds">Seconds only</option></select></div>
+              <div class="setting-row"><label>Clock color</label><select id="smClockColor"><option value="accent">Accent (cyan)</option><option value="white">White</option><option value="red">Red</option><option value="blue">Blue</option><option value="green">Green</option></select></div>
+              <div class="setting-row"><label>Clock shadow</label><div class="toggle-wrap"><input type="checkbox" id="smClockShadow" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Show opponent clock</label><div class="toggle-wrap"><input type="checkbox" id="smShowOpponentClock" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Time penalty per move (seconds)</label><input type="number" id="smTimePenaltyPerMove" min="0" max="10" value="0" /></div>
+            </div>
+          </div>
+
+          <!-- ===== NOTIFICATIONS ===== -->
+          <div class="tab-pane" id="tab-notify">
+            <div class="settings-section">
+              <div class="section-title">Alerts</div>
+              <div class="setting-row"><label>Toast notifications</label><div class="toggle-wrap"><input type="checkbox" id="smToastNotifications" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Game over alert</label><div class="toggle-wrap"><input type="checkbox" id="smGameOverAlert" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Move made alert</label><div class="toggle-wrap"><input type="checkbox" id="smMoveMadeAlert" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Check alert</label><div class="toggle-wrap"><input type="checkbox" id="smCheckAlert" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Low time alert</label><div class="toggle-wrap"><input type="checkbox" id="smLowTimeAlert" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Sound notifications</label><div class="toggle-wrap"><input type="checkbox" id="smSoundNotifications" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Desktop notifications</label><div class="toggle-wrap"><input type="checkbox" id="smDesktopNotifications" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Notification duration (ms)</label><input type="number" id="smNotificationDuration" min="1000" max="10000" value="3000" /></div>
+              <div class="setting-row"><label>Notification position</label><select id="smNotificationPosition"><option value="bottom">Bottom center</option><option value="top">Top center</option><option value="top-right">Top right</option><option value="bottom-right">Bottom right</option></select></div>
+            </div>
+          </div>
+
+          <!-- ===== ADVANCED ===== -->
+          <div class="tab-pane" id="tab-advanced">
+            <div class="settings-section">
+              <div class="section-title">Experimental</div>
+              <div class="setting-row"><label>Engine analysis depth</label><input type="range" id="smEngineAnalysisDepth" min="1" max="10" step="1" value="3" /><span class="setting-value" id="smValEngineAnalysisDepth">3</span></div>
+              <div class="setting-row"><label>Show evaluation bar</label><div class="toggle-wrap"><input type="checkbox" id="smShowEvaluationBar" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Show best move line</label><div class="toggle-wrap"><input type="checkbox" id="smShowBestMoveLine" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Show principal variation</label><div class="toggle-wrap"><input type="checkbox" id="smShowPrincipalVariation" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Auto-flip board</label><div class="toggle-wrap"><input type="checkbox" id="smAutoFlipBoard" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Coordinates style</label><select id="smCoordinatesStyle"><option value="standard">Standard</option><option value="algebraic">Algebraic</option><option value="none">None</option></select></div>
+              <div class="setting-row"><label>Move list font</label><select id="smMoveListFont"><option value="mono">Monospace</option><option value="sans">Sans-serif</option><option value="serif">Serif</option></select></div>
+              <div class="setting-row"><label>Move list density</label><select id="smMoveListDensity"><option value="compact">Compact</option><option value="normal">Normal</option><option value="spacious">Spacious</option></select></div>
+              <div class="setting-row"><label>Compact mode</label><div class="toggle-wrap"><input type="checkbox" id="smCompactMode" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Dark mode</label><div class="toggle-wrap"><input type="checkbox" id="smDarkMode" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>High contrast mode</label><div class="toggle-wrap"><input type="checkbox" id="smHighContrast" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Reduced motion</label><div class="toggle-wrap"><input type="checkbox" id="smReducedMotion" /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Keyboard shortcuts</label><div class="toggle-wrap"><input type="checkbox" id="smKeyboardShortcuts" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Export format</label><select id="smExportFormat"><option value="json">JSON</option><option value="pgn">PGN</option><option value="fen">FEN</option></select></div>
+              <div class="setting-row"><label>Auto-save games</label><div class="toggle-wrap"><input type="checkbox" id="smAutoSaveGames" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Local-only mode</label><div class="toggle-wrap"><input type="checkbox" id="smLocalOnlyMode" checked /><span class="toggle"></span></div></div>
+              <div class="setting-row"><label>Debug mode</label><div class="toggle-wrap"><input type="checkbox" id="smDebugMode" /><span class="toggle"></span></div></div>
+            </div>
+          </div>
+
+          <!-- ===== DANGER ZONE ===== -->
+          <div class="tab-pane" id="tab-danger">
+            <div class="settings-section danger-zone">
+              <div class="section-title">Danger Zone</div>
+              <button class="btn btn-danger btn-block" id="btnResetStats">Reset Elo &amp; stats</button>
+              <button class="btn btn-block" id="btnExport">Export game data (JSON)</button>
+              <button class="btn btn-block" id="btnImport">Import game data (JSON)</button>
+              <button class="btn btn-danger btn-block" id="btnResetSettings">Reset all settings</button>
+            </div>
+          </div>
         </div>
       </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseSettings2">Close</button>
+        <button class="btn btn-primary btn-block" id="btnSaveSettings">Save all changes</button>
+      </div>      </div>
       <div class="modal-footer">
         <button class="btn btn-outline" id="btnCloseSettings2">Close</button>
         <button class="btn btn-primary" id="btnSaveSettings">Save changes</button>
