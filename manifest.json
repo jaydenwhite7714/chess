@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Test Net",
+  "version": "1.2.0",
+  "description": "Anti-cheat protected chess with human-like auto-move, Elo ratings, and stealth mode. Works on chess.com and as a standalone app.",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Chess Test Net",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.chess.com/*", "*://chess.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["*://*.chess.com/*", "*://chess.com/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
