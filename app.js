@@ -1,20 +1,20 @@
 /* ============================================================
    Chess Test Net — main application
-   Ultra-polished: sound effects, piece animations, particles,
-   smooth UX, anti-cheat, auto-move, Elo, settings.
+   Fully integrated: human-like AI, stealth anti-cheat, sound,
+   particles, Elo, settings, smooth UX.
    ============================================================ */
 
 (() => {
   const ui = new window.UI();
   const settings = window.settings;
 
-  // Core instances
   const chess = new window.Chess();
   const ai = new window.ChessAI({
     strength: settings.get("botStrength"),
     humanize: settings.get("humanizeEnabled"),
     minTime: settings.get("moveTimeMin") * 1000,
-    maxTime: settings.get("moveTimeMax") * 1000
+    maxTime: settings.get("moveTimeMax") * 1000,
+    personality: settings.get("aiPersonality") || "balanced"
   });
   const antiCheat = new window.AntiCheat({
     enabled: settings.get("antiCheatEnabled"),
@@ -27,21 +27,25 @@
   });
 
   // -----------------------------------------------------------------
-  // Sound system (Web Audio API, no external files)
+  // Sound (Web Audio API, no external files)
   // -----------------------------------------------------------------
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
   let audioCtx = null;
-  let soundEnabled = true;
+  let soundEnabled = false;
 
   function ensureAudio() {
-    if (!audioCtx) audioCtx = new AudioCtx();
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") {
+      try { audioCtx.resume(); } catch (e) {}
+    }
+    return !!audioCtx;
   }
 
   function playTone(type) {
-    if (!soundEnabled) return;
+    if (!soundEnabled || !ensureAudio()) return;
     try {
-      ensureAudio();
-      if (audioCtx.state === "suspended") audioCtx.resume();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);
@@ -49,27 +53,33 @@
       const now = audioCtx.currentTime;
 
       const cfg = {
-        move:   { f: 260, f2: 320, t: 0.06, type: "sine" },
-        capture:{ f: 180, f2: 220, t: 0.1, type: "sawtooth" },
-        castle: { f: 300, f2: 400, f3: 500, t: 0.15, type: "triangle" },
-        promote:{ f: 400, f2: 600, t: 0.2, type: "square" },
-        check:  { f: 150, f2: 120, t: 0.3, type: "sawtooth" },
-        gameover:{ f: 120, f2: 90, t: 0.5, type: "sawtooth" },
-        ui:     { f: 700, t: 0.04, type: "sine" }
+        move:   { f: 260, f2: 330, t: 0.06, type: "sine" },
+        capture:{ f: 170, f2: 210, t: 0.1, type: "sawtooth" },
+        castle: { f: 300, f2: 420, f3: 520, t: 0.15, type: "triangle" },
+        promote:{ f: 400, f2: 650, t: 0.2, type: "square" },
+        check:  { f: 160, f2: 130, t: 0.3, type: "sawtooth" },
+        gameover:{ f: 130, f2: 100, t: 0.5, type: "sawtooth" },
+        win:    { f: 520, f2: 660, f3: 800, t: 0.4, type: "sine" },
+        lose:   { f: 180, f2: 140, f3: 110, t: 0.5, type: "sawtooth" },
+        draw:   { f: 340, f2: 380, t: 0.3, type: "sine" },
+        ui:     { f: 900, t: 0.03, type: "sine" }
       }[type] || { f: 400, t: 0.05, type: "sine" };
 
-      if (cfg.f2) {
+      if (cfg.f3) {
+        osc.frequency.setValueAtTime(cfg.f, now);
+        osc.frequency.linearRampToValueAtTime(cfg.f2, now + cfg.t / 3);
+        osc.frequency.linearRampToValueAtTime(cfg.f3, now + cfg.t * 2 / 3);
+      } else if (cfg.f2) {
         osc.frequency.setValueAtTime(cfg.f, now);
         osc.frequency.exponentialRampToValueAtTime(cfg.f2, now + cfg.t / 2);
-        if (cfg.f3) osc.frequency.exponentialRampToValueAtTime(cfg.f3, now + cfg.t);
       } else {
         osc.frequency.setValueAtTime(cfg.f, now);
       }
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + cfg.t);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.0005, now + cfg.t);
       osc.start(now);
       osc.stop(now + cfg.t + 0.05);
-    } catch (e) { /* audio blocked silently */ }
+    } catch (e) {}
   }
 
   // -----------------------------------------------------------------
@@ -82,29 +92,34 @@
   let autoMoveTimer = null;
   let gameStarted = false;
 
-  let capturedWhite = []; // pieces won by white
-  let capturedBlack = []; // pieces won by black
+  let capturedWhite = [];
+  let capturedBlack = [];
 
   let stats = JSON.parse(localStorage.getItem("chess_testnet_stats") || "{}");
   if (!stats.games) stats = { games: 0, wins: 0, losses: 0, draws: 0, bestElo: 0 };
 
   // -----------------------------------------------------------------
-  // Confetti / particles
+  // Confetti
   // -----------------------------------------------------------------
   function fireConfetti(colors) {
-    const container = document.getElementById("confetti") ||
-                      (() => { const c = document.createElement("div"); c.id = "confetti"; document.body.appendChild(c); return c; })();
-    const count = 60;
+    let container = document.getElementById("confetti");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "confetti";
+      document.body.appendChild(container);
+    }
+    const count = 70;
     for (let i = 0; i < count; i++) {
       const p = document.createElement("div");
       p.className = "confetti-piece";
       p.style.left = Math.random() * 100 + "vw";
-      p.style.top = "-10vh";
+      p.style.top = "-12vh";
       p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-      p.style.animationDuration = (1.2 + Math.random() * 1.2) + "s";
-      p.style.animationDelay = (Math.random() * 0.5) + "s";
+      p.style.animationDuration = (1.4 + Math.random() * 1.4) + "s";
+      p.style.animationDelay = (Math.random() * 0.6) + "s";
+      p.style.opacity = 0.85 + Math.random() * 0.15;
       container.appendChild(p);
-      setTimeout(() => p.remove(), 3000);
+      setTimeout(() => p.remove(), 3200);
     }
   }
 
@@ -115,26 +130,24 @@
     applySettingsToUI();
     newGame();
     render();
-    ui.setFooter("Ready", "Anti-cheat: active");
+    ui.setFooter("Ready", "Anti-cheat: active · stealth mode");
 
-    // Sound toggle on first click anywhere
-    document.body.addEventListener("click", () => { soundEnabled = true; }, { once: true });
+    // Enable sound on first interaction
+    document.body.addEventListener("click", () => { soundEnabled = true; ensureAudio(); }, { once: true });
+    document.body.addEventListener("keydown", () => { soundEnabled = true; ensureAudio(); }, { once: true });
 
-    // Buttons
-    document.getElementById("btnNewGame").addEventListener("click", () => newGame());
-    document.getElementById("btnResign").addEventListener("click", () => endGame("black"));
-    document.getElementById("btnDraw").addEventListener("click", () => endGame("draw"));
+    document.getElementById("btnNewGame").addEventListener("click", () => { playTone("ui"); newGame(); });
+    document.getElementById("btnResign").addEventListener("click", () => { playTone("lose"); endGame("black"); });
+    document.getElementById("btnDraw").addEventListener("click", () => { playTone("draw"); endGame("draw"); });
     document.getElementById("btnClearMoves").addEventListener("click", () => { ui.clearMoves(); playTone("ui"); });
     document.getElementById("btnSettings").addEventListener("click", openSettings);
 
-    // Settings modal
     document.getElementById("btnSaveSettings").addEventListener("click", saveSettings);
     document.getElementById("btnCloseSettings2").addEventListener("click", closeSettings);
     document.getElementById("modalBackdrop").addEventListener("click", closeSettings);
     document.getElementById("btnResetStats").addEventListener("click", resetStats);
     document.getElementById("btnExport").addEventListener("click", exportData);
 
-    // Game over
     document.getElementById("btnCloseGameOver").addEventListener("click", closeGameOver);
     document.getElementById("goBackdrop").addEventListener("click", closeGameOver);
     document.getElementById("btnPlayAgain").addEventListener("click", () => { closeGameOver(); newGame(); });
@@ -164,7 +177,7 @@
     ui.setElo("black", elo.ratingBlack);
     ui.setStatus("white", "Your turn");
     ui.setStatus("black", "Waiting");
-    ui.setFooter("New game started", "Anti-cheat: active");
+    ui.setFooter("New game started", "Anti-cheat: active · stealth mode");
 
     document.getElementById("confetti")?.remove();
 
@@ -175,12 +188,19 @@
   }
 
   function applyMove(move, playedByHuman = true) {
-    playTone("move");
+    const isCapture = chess.square(move.to) !== "." && chess.square(move.to) !== chess.square(move.from);
+    // Determine capture BEFORE applying (we check target)
+    const targetBefore = chess.square(move.to);
+    const isCastle = move.from !== undefined && Math.abs(move.from - move.to) === 2 &&
+      chess.square(move.from) && chess.square(move.from).toLowerCase() === "k";
+    const isPromo = !!move.promotion;
+
+    playTone(isCapture ? "capture" : isCastle ? "castle" : isPromo ? "promote" : "move");
+
     const result = chess.move(move);
     if (!result) return false;
 
     if (result.capture && result.capture !== ".") {
-      playTone("capture");
       const owner = colorOfPiece(result.capture) === "w" ? "white" : "black";
       if (owner === "white") capturedBlack.push(result.capture);
       else capturedWhite.push(result.capture);
@@ -300,7 +320,7 @@
   }
 
   // -----------------------------------------------------------------
-  // Auto-move (bot)
+  // Auto-move (bot) — human-like
   // -----------------------------------------------------------------
   function maybeAutoMove() {
     stopAutoMove();
@@ -310,14 +330,30 @@
     const botOn = gameMode === "pvb" && !humanTurn && settings.get("autoMoveEnabled");
 
     if (botOn) {
-      const delay = antiCheat.stealthDelay({
+      // Count complexity for human-like thinking time
+      let complexity = 0;
+      for (let i = 0; i < 64; i++) {
+        const p = chess.square(i);
+        if (p && p !== ".") complexity++;
+      }
+      complexity = complexity / 64;
+
+      const moveCount = chess.history.length;
+      const timeLeft = chess.side === "b" ? timeBlack : timeWhite;
+
+      const delay = antiCheat.suggestDelay({
         minTime: settings.get("moveTimeMin") * 1000,
-        maxTime: settings.get("moveTimeMax") * 1000
+        maxTime: settings.get("moveTimeMax") * 1000,
+        complexity
       });
-      ui.setFooter("Bot thinking...", "Anti-cheat: active · undetectable mode");
+
+      ui.setFooter("Bot thinking...", "Anti-cheat: active · stealth mode");
       autoMoveTimer = setTimeout(() => {
         antiCheat.startMove();
-        const pick = ai.pick(chess);
+        const pick = ai.pick(chess, {
+          moveCount,
+          timeLeft
+        });
         if (pick && pick.move) {
           const legal = chess.moves({ verbose: true });
           const ac = antiCheat.validate(pick.move, legal, true);
@@ -368,19 +404,24 @@
       if (legal.length) {
         const chosen = legal[0];
 
-        // Pawn promotion prompt
+        // Pawn promotion
         let promotion = chosen.promotion;
-        if (chosen.promotion === null && chess.square(ui.selectedSquare)?.toLowerCase() === "p" &&
-            (rankOf(toIdx(idx)) === 0 || rankOf(toIdx(idx)) === 7)) {
-          promotion = prompt("Promote to (q)ueen, (r)ook, (b)ishop, (k)night?", "q");
-          if (!promotion || !"qrbk".includes(promotion.toLowerCase())) promotion = "q";
+        const movingPiece = chess.square(ui.selectedSquare);
+        const toRank = 8 - rankOf(idx);
+        if (movingPiece && movingPiece.toLowerCase() === "p" && (toRank === 8 || toRank === 1)) {
+          promotion = prompt("Promote pawn to:\nq = Queen\nr = Rook\nb = Bishop\nn = Knight\n\nEnter: q/r/b/n", "q");
+          if (!promotion || !"qrbn".includes(promotion.toLowerCase())) promotion = "q";
           promotion = promotion.toLowerCase();
         }
 
         antiCheat.startMove();
-        const ac = antiCheat.validate({ from: chosen.from, to: chosen.to, promotion }, chess.moves({ verbose: true }), false);
+        const ac = antiCheat.validate(
+          { from: chosen.from, to: chosen.to, promotion },
+          chess.moves({ verbose: true }),
+          false
+        );
         if (!ac.ok) {
-          ui.toast("Move flagged by anti-cheat", "warn");
+          ui.toast("Move blocked by anti-cheat (illegal)", "warn");
           ui.clearSelection();
           render();
           return;
@@ -395,12 +436,6 @@
   };
 
   function rankOf(s) { return (s / 8) | 0; }
-  function toIdx(sqNameStr) {
-    // convert "e4" -> index
-    const f = sqNameStr.charCodeAt(0) - 97;
-    const r = 8 - parseInt(sqNameStr[1], 10);
-    return r * 8 + f;
-  }
 
   // -----------------------------------------------------------------
   // Game over / Elo
@@ -436,7 +471,7 @@
       draw: chess.termination === "stalemate" ? "Stalemate" : "Draw"
     };
 
-    playTone(result === "draw" ? "ui" : "gameover");
+    playTone(result === "white" ? "win" : result === "black" ? "lose" : "draw");
 
     if (result === "white") fireConfetti(["#6366f1", "#22d3ee", "#22c55e", "#fbbf24"]);
     else if (result === "black") fireConfetti(["#ef4444", "#f59e0b", "#6366f1"]);
@@ -444,7 +479,7 @@
 
     openGameOver(result, titles[result], rating);
 
-    ui.setFooter("Game over · " + result, "Anti-cheat: active");
+    ui.setFooter("Game over · " + result, "Anti-cheat: active · stealth mode");
     ui.toast(result.charAt(0).toUpperCase() + result.slice(1) + " — Elo updated", result === "white" ? "ok" : "info");
   }
 
@@ -499,7 +534,8 @@
       strength: next.botStrength,
       humanize: next.humanizeEnabled,
       minTime: next.moveTimeMin * 1000,
-      maxTime: next.moveTimeMax * 1000
+      maxTime: next.moveTimeMax * 1000,
+      personality: next.aiPersonality || "balanced"
     });
     antiCheat.enabled = next.antiCheatEnabled;
     antiCheat.minMoveTime = next.acMinTime * 1000;

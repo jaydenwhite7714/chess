@@ -15,6 +15,7 @@ const DEFAULTS = {
   moveTimeMin: 1.5,
   moveTimeMax: 5,
   botStrength: "medium",     // random | weak | medium | strong
+  aiPersonality: "balanced", // balanced | aggressive | positional
   antiCheatEnabled: true,
   acMinTime: 0.3,
   acMaxAcc: 98,
@@ -54,7 +55,6 @@ class Settings {
     this.save();
   }
 
-  // Time control seconds
   timeSeconds() {
     const tc = this.values.timeControl;
     if (tc === "bullet") return 120;

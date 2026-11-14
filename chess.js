@@ -1,17 +1,15 @@
 /* ============================================================
    Chess Test Net — chess engine
-   Self-contained chess logic: move generation, validation,
-   castling, en passant, promotion, check/checkmate/stalemate.
-   Board storage: index = rankIndex*8 + file, where rankIndex 0 = board rank 8.
+   Bulletproof move generation: castling, en passant, promotion,
+   check/checkmate/stalemate, SAN notation.
+   Board storage: index = rankIndex*8 + file, rankIndex 0 = board rank 8.
    ============================================================ */
 
 const WHITE = "w";
 const BLACK = "b";
-
 const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 const EMPTY = ".";
 
-// Square helpers. rankIndex 0 = board rank 8 (top), rankIndex 7 = board rank 1 (bottom).
 function sq(file, rankIndex) { return rankIndex * 8 + file; }
 function fileOf(s) { return s % 8; }
 function rankOf(s) { return (s / 8) | 0; }
@@ -20,14 +18,13 @@ function sqName(s) {
   return String.fromCharCode(97 + fileOf(s)) + boardRankOf(s);
 }
 function sqFromName(name) {
-  if (!name || name.length < 2) return -1;
+  if (!name || typeof name !== "string" || name.length < 2) return -1;
   const f = name.charCodeAt(0) - 97;
   const boardRank = parseInt(name[1], 10);
-  const r = 8 - boardRank; // board rank -> storage rankIndex
+  const r = 8 - boardRank;
   if (f < 0 || f > 7 || r < 0 || r > 7 || isNaN(boardRank)) return -1;
   return sq(f, r);
 }
-
 function colorOf(piece) {
   if (!piece || piece === EMPTY) return null;
   return piece === piece.toUpperCase() ? WHITE : BLACK;
@@ -36,22 +33,19 @@ function isOpponent(piece, color) {
   return piece !== EMPTY && colorOf(piece) !== color;
 }
 
-// Initial position (rankIndex 0 = black back rank ... rankIndex 7 = white back rank)
 const START_BOARD = [
-  "r","n","b","q","k","b","n","r",   // 8
-  "p","p","p","p","p","p","p","p",   // 7
-  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY, // 6
-  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY, // 5
-  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY, // 4
-  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY, // 3
-  "P","P","P","P","P","P","P","P",   // 2
-  "R","N","B","Q","K","B","N","R"    // 1
+  "r","n","b","q","k","b","n","r",
+  "p","p","p","p","p","p","p","p",
+  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,
+  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,
+  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,
+  EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,EMPTY,
+  "P","P","P","P","P","P","P","P",
+  "R","N","B","Q","K","B","N","R"
 ];
 
 class Chess {
-  constructor() {
-    this.reset();
-  }
+  constructor() { this.reset(); }
 
   reset() {
     this.board = [...START_BOARD];
@@ -81,10 +75,6 @@ class Chess {
     return c;
   }
 
-  // -----------------------------------------------------------------
-  // Move generation
-  // -----------------------------------------------------------------
-
   _addMove(moves, from, to, promotion, capture, flags) {
     moves.push({
       from, to,
@@ -105,12 +95,8 @@ class Chess {
       while (nf >= 0 && nf <= 7 && nr >= 0 && nr <= 7) {
         const to = sq(nf, nr);
         const target = this.board[to];
-        if (target === EMPTY) {
-          this._addMove(moves, from, to);
-        } else {
-          if (isOpponent(target, color)) this._addMove(moves, from, to, null, target, "c");
-          break;
-        }
+        if (target === EMPTY) this._addMove(moves, from, to);
+        else { if (isOpponent(target, color)) this._addMove(moves, from, to, null, target, "c"); break; }
         nf += df; nr += dr;
       }
     }
@@ -134,21 +120,17 @@ class Chess {
   _pawnMoves(moves, from) {
     const piece = this.board[from];
     const color = colorOf(piece);
-    const dir = color === WHITE ? -1 : 1; // white moves toward rankIndex 0
-    const startRank = color === WHITE ? 6 : 1; // rank 2 / rank 7
-    const promotionRank = color === WHITE ? 0 : 7; // rank 8 / rank 1
+    const dir = color === WHITE ? -1 : 1;
+    const startRank = color === WHITE ? 6 : 1;
+    const promotionRank = color === WHITE ? 0 : 7;
     const f = fileOf(from), r = rankOf(from);
     const one = sq(f, r + dir);
-    if (r + dir >= 0 && r + dir <= 7) {
-      if (this.board[one] === EMPTY) {
-        if (rankOf(one) === promotionRank) {
-          for (const prom of ["q","r","b","n"]) this._addMove(moves, from, one, prom, EMPTY, "p");
-        } else {
-          this._addMove(moves, from, one);
-        }
-        const two = sq(f, r + 2 * dir);
-        if (r === startRank && this.board[two] === EMPTY) this._addMove(moves, from, two);
-      }
+    if (r + dir >= 0 && r + dir <= 7 && this.board[one] === EMPTY) {
+      if (rankOf(one) === promotionRank) {
+        for (const prom of ["q","r","b","n"]) this._addMove(moves, from, one, prom, EMPTY, "p");
+      } else this._addMove(moves, from, one);
+      const two = sq(f, r + 2 * dir);
+      if (r === startRank && this.board[two] === EMPTY) this._addMove(moves, from, two);
     }
     for (const df of [-1, 1]) {
       const nf = f + df;
@@ -159,13 +141,9 @@ class Chess {
       if (target !== EMPTY && isOpponent(target, color)) {
         if (rankOf(to) === promotionRank) {
           for (const prom of ["q","r","b","n"]) this._addMove(moves, from, to, prom, target, "c");
-        } else {
-          this._addMove(moves, from, to, null, target, "c");
-        }
+        } else this._addMove(moves, from, to, null, target, "c");
       }
-      if (to === this.enPassant) {
-        this._addMove(moves, from, to, null, EMPTY, "e");
-      }
+      if (to === this.enPassant) this._addMove(moves, from, to, null, EMPTY, "e");
     }
   }
 
@@ -182,7 +160,6 @@ class Chess {
       if (target === EMPTY) this._addMove(moves, from, to);
       else if (isOpponent(target, color)) this._addMove(moves, from, to, null, target, "c");
     }
-    // Castling. White king on rankIndex 7 (board rank 1), black on rankIndex 0 (board rank 8).
     if (color === WHITE && from === sq(4, 7)) {
       if (this.castling.K && this.board[sq(5,7)] === EMPTY && this.board[sq(6,7)] === EMPTY &&
           !this._squareAttacked(sq(4,7), BLACK) && !this._squareAttacked(sq(5,7), BLACK) && !this._squareAttacked(sq(6,7), BLACK)) {
@@ -222,10 +199,6 @@ class Chess {
     }
   }
 
-  // -----------------------------------------------------------------
-  // Attack detection
-  // -----------------------------------------------------------------
-
   _squareAttacked(sqIdx, byColor) {
     for (let i = 0; i < 64; i++) {
       const piece = this.board[i];
@@ -235,9 +208,7 @@ class Chess {
       const tf = fileOf(sqIdx), tr = rankOf(sqIdx);
       if (type === "p") {
         const dir = byColor === WHITE ? -1 : 1;
-        if (tf === f + 1 || tf === f - 1) {
-          if (tr === r + dir) return true;
-        }
+        if ((tf === f + 1 || tf === f - 1) && tr === r + dir) return true;
         continue;
       }
       if (type === "n") {
@@ -249,16 +220,8 @@ class Chess {
         if (Math.abs(tf - f) <= 1 && Math.abs(tr - r) <= 1) return true;
         continue;
       }
-      if (type === "b" || type === "q") {
-        if (Math.abs(tf - f) === Math.abs(tr - r)) {
-          if (this._pathClear(i, sqIdx)) return true;
-        }
-      }
-      if (type === "r" || type === "q") {
-        if (f === tf || r === tr) {
-          if (this._pathClear(i, sqIdx)) return true;
-        }
-      }
+      if ((type === "b" || type === "q") && Math.abs(tf - f) === Math.abs(tr - r) && this._pathClear(i, sqIdx)) return true;
+      if ((type === "r" || type === "q") && (f === tf || r === tr) && this._pathClear(i, sqIdx)) return true;
     }
     return false;
   }
@@ -276,22 +239,14 @@ class Chess {
     return true;
   }
 
-  _kingSquare(color) {
-    const p = color === WHITE ? "K" : "k";
-    return this.board.indexOf(p);
-  }
-
+  _kingSquare(color) { return this.board.indexOf(color === WHITE ? "K" : "k"); }
   _inCheck(color) {
     const ks = this._kingSquare(color);
     return ks !== -1 && this._squareAttacked(ks, color === WHITE ? BLACK : WHITE);
   }
 
-  // -----------------------------------------------------------------
-  // Public API
-  // -----------------------------------------------------------------
-
   moves(options = {}) {
-    const verbose = options.verbose || false;
+    const verbose = !!options.verbose;
     const raw = [];
     this._generateMoves(raw);
     const legal = [];
@@ -299,7 +254,6 @@ class Chess {
       if (this._tryMove(m)) {
         if (verbose) legal.push({ ...m, san: this._san(m), lan: m.lan });
         else legal.push(m.lan);
-        // _tryMove already restores state; do not call _undo here.
       }
     }
     return legal;
@@ -317,11 +271,7 @@ class Chess {
 
     this.board[m.to] = piece;
     this.board[m.from] = EMPTY;
-
-    if (m.flags === "e") {
-      const capSq = color === WHITE ? m.to + 8 : m.to - 8;
-      this.board[capSq] = EMPTY;
-    }
+    if (m.flags === "e") this.board[color === WHITE ? m.to + 8 : m.to - 8] = EMPTY;
     if (m.flags === "K") { this.board[sq(5,7)] = this.board[sq(7,7)]; this.board[sq(7,7)] = EMPTY; }
     if (m.flags === "Q") { this.board[sq(3,7)] = this.board[sq(0,7)]; this.board[sq(0,7)] = EMPTY; }
     if (m.flags === "k") { this.board[sq(5,0)] = this.board[sq(7,0)]; this.board[sq(7,0)] = EMPTY; }
@@ -339,14 +289,12 @@ class Chess {
     if (piece.toLowerCase() === "p" && Math.abs(rankOf(m.to) - rankOf(m.from)) === 2) {
       this.enPassant = color === WHITE ? m.to + 8 : m.to - 8;
     }
-
     this.halfmove = piece.toLowerCase() === "p" || captured !== EMPTY ? 0 : halfmove + 1;
     this.side = color === WHITE ? BLACK : WHITE;
     if (this.side === WHITE) this.fullmove++;
 
     const ok = !this._inCheck(color);
 
-    // restore
     this.board[m.from] = piece;
     this.board[m.to] = captured;
     this.enPassant = ep;
@@ -354,7 +302,6 @@ class Chess {
     this.halfmove = halfmove;
     this.side = side;
     this.fullmove = fullmove;
-
     return ok;
   }
 
@@ -364,22 +311,15 @@ class Chess {
     const captured = this.board[m.to];
 
     this.history.push({
-      from: m.from, to: m.to,
-      piece, captured, promotion: m.promotion, flags: m.flags,
-      castling: { ...this.castling },
-      enPassant: this.enPassant,
-      halfmove: this.halfmove,
-      fullmove: this.fullmove,
-      side: this.side
+      from: m.from, to: m.to, piece, captured,
+      promotion: m.promotion, flags: m.flags,
+      castling: { ...this.castling }, enPassant: this.enPassant,
+      halfmove: this.halfmove, fullmove: this.fullmove, side: this.side
     });
 
     this.board[m.to] = m.promotion ? (color === WHITE ? m.promotion.toUpperCase() : m.promotion) : piece;
     this.board[m.from] = EMPTY;
-
-    if (m.flags === "e") {
-      const capSq = color === WHITE ? m.to + 8 : m.to - 8;
-      this.board[capSq] = EMPTY;
-    }
+    if (m.flags === "e") this.board[color === WHITE ? m.to + 8 : m.to - 8] = EMPTY;
     if (m.flags === "K") { this.board[sq(5,7)] = this.board[sq(7,7)]; this.board[sq(7,7)] = EMPTY; }
     if (m.flags === "Q") { this.board[sq(3,7)] = this.board[sq(0,7)]; this.board[sq(0,7)] = EMPTY; }
     if (m.flags === "k") { this.board[sq(5,0)] = this.board[sq(7,0)]; this.board[sq(7,0)] = EMPTY; }
@@ -396,7 +336,6 @@ class Chess {
     if (piece.toLowerCase() === "p" && Math.abs(rankOf(m.to) - rankOf(m.from)) === 2) {
       this.enPassant = color === WHITE ? m.to + 8 : m.to - 8;
     }
-
     this.halfmove = piece.toLowerCase() === "p" || captured !== EMPTY ? 0 : this.halfmove + 1;
     this.side = color === WHITE ? BLACK : WHITE;
     if (this.side === WHITE) this.fullmove++;
@@ -410,10 +349,7 @@ class Chess {
     const color = h.side;
     this.board[h.from] = piece;
     this.board[h.to] = h.captured;
-    if (h.flags === "e") {
-      const capSq = color === WHITE ? h.to + 8 : h.to - 8;
-      this.board[capSq] = color === WHITE ? "p" : "P";
-    }
+    if (h.flags === "e") this.board[color === WHITE ? h.to + 8 : h.to - 8] = color === WHITE ? "p" : "P";
     if (h.flags === "K") { this.board[sq(7,7)] = this.board[sq(5,7)]; this.board[sq(5,7)] = EMPTY; }
     if (h.flags === "Q") { this.board[sq(0,7)] = this.board[sq(3,7)]; this.board[sq(3,7)] = EMPTY; }
     if (h.flags === "k") { this.board[sq(7,0)] = this.board[sq(5,0)]; this.board[sq(5,0)] = EMPTY; }
@@ -443,15 +379,13 @@ class Chess {
     c._applyMove(m);
     const opp = c.side;
     const oppMoves = c.moves();
-    if (oppMoves.length === 0) {
-      s += c._inCheck(opp) ? "#" : "";
-    } else if (c._inCheck(opp)) {
-      s += "+";
-    }
+    if (oppMoves.length === 0) s += c._inCheck(opp) ? "#" : "";
+    else if (c._inCheck(opp)) s += "+";
     return s;
   }
 
   move(sanOrMove) {
+    if (!sanOrMove) return null;
     let m;
     if (typeof sanOrMove === "string") {
       m = this._parseMove(sanOrMove);
@@ -459,7 +393,6 @@ class Chess {
     } else {
       m = sanOrMove;
     }
-    if (!m) return null;
     const legal = this.moves({ verbose: true });
     const found = legal.find(lm => lm.from === m.from && lm.to === m.to &&
       (!m.promotion || lm.promotion === m.promotion));
@@ -481,7 +414,6 @@ class Chess {
   }
 
   _checkGameOver() {
-    // Evaluate on a clone so we don't disturb (or undo) the current position.
     const c = this._clone();
     const legal = c.moves();
     if (legal.length === 0) {
@@ -503,15 +435,11 @@ class Chess {
   get fen() {
     let rows = "";
     for (let r = 0; r < 8; r++) {
-      let empty = 0;
-      let row = "";
+      let empty = 0, row = "";
       for (let f = 0; f < 8; f++) {
         const p = this.board[sq(f, r)];
         if (p === EMPTY) empty++;
-        else {
-          if (empty > 0) { row += empty; empty = 0; }
-          row += p;
-        }
+        else { if (empty > 0) { row += empty; empty = 0; } row += p; }
       }
       if (empty > 0) row += empty;
       rows += row + (r < 7 ? "/" : "");
@@ -528,16 +456,9 @@ class Chess {
     return s || "-";
   }
 
-  enPassantFen() {
-    return this.enPassant === -1 ? "-" : sqName(this.enPassant);
-  }
-
+  enPassantFen() { return this.enPassant === -1 ? "-" : sqName(this.enPassant); }
   square(i) { return this.board[i]; }
-
-  legalMoves() {
-    return this.moves({ verbose: true });
-  }
-
+  legalMoves() { return this.moves({ verbose: true }); }
   isGameOver() { return this.gameOver; }
 }
 

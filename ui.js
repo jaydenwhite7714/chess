@@ -270,6 +270,7 @@ class UI {
     sync("timeControl", "smTimeControl");
     sync("boardTheme", "smBoardTheme");
     sync("botStrength", "smBotStrength");
+    sync("aiPersonality", "smAiPersonality");
 
     // Value labels for sliders
     const wireLabel = (id, labelId, unit) => {
@@ -305,6 +306,7 @@ class UI {
     set("smMoveTimeMin", settings.moveTimeMin);
     set("smMoveTimeMax", settings.moveTimeMax);
     set("smBotStrength", settings.botStrength);
+    set("smAiPersonality", settings.aiPersonality);
     set("smAntiCheatEnabled", settings.antiCheatEnabled);
     set("smAcMinTime", settings.acMinTime);
     set("smAcMaxAcc", settings.acMaxAcc);
@@ -326,6 +328,7 @@ class UI {
       moveTimeMin: parseFloat(g("smMoveTimeMin")),
       moveTimeMax: parseFloat(g("smMoveTimeMax")),
       botStrength: g("smBotStrength"),
+      aiPersonality: g("smAiPersonality"),
       antiCheatEnabled: gc("smAntiCheatEnabled"),
       acMinTime: parseFloat(g("smAcMinTime")),
       acMaxAcc: parseInt(g("smAcMaxAcc")),

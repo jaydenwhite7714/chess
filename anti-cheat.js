@@ -1,40 +1,39 @@
 /* ============================================================
-   Chess Test Net — Anti-cheat / Stealth module
+   Chess Test Net — Anti-Cheat / Stealth
    
-   Protects play by validating every move and monitoring timing /
-   accuracy. Humanization keeps moves looking natural so accounts
-   stay undetectable.
+   Purpose: keep play looking 100% human so accounts stay
+   unbanned / undetectable.
    
-   Stealth features:
-     - Variable, human-like move timing (not robotic)
-     - Occasional deliberate imperfections (blunders, inaccuracy)
-     - Trust score decay/recovery
-     - Move legality validation (blocks engine-injected moves)
+   What it does:
+   - Validates every move is legal (blocks engine-injected moves that
+     would be instantly detectable)
+   - Tracks move timing and accuracy
+   - Suggests human-like delays so timing never looks robotic
+   - Maintains a "trust score" — high trust = looks human
+   - Flags only truly suspicious patterns (impossible speeds,
+     engine-perfect long streaks) and nudges toward human behavior
    
-   Flags:
-     - "fast_move"     : move made faster than human minimum
-     - "high_accuracy" : move matches engine too often
-     - "illegal_move"  : move not in legal list (blocked)
-     - "perfect_streak": long run of engine-perfect moves
-   
-   A "trust score" (0-100) is maintained; low trust triggers warnings.
+   Stealth principles:
+   - Never flag a good move as cheating
+   - Encourage natural variance in timing and move quality
+   - Trust score recovers when you play naturally
    ============================================================ */
 
 class AntiCheat {
   constructor(options = {}) {
     this.enabled = options.enabled !== false;
-    this.minMoveTime = options.minMoveTime || 600;   // ms, human minimum
-    this.maxAccuracy = options.maxAccuracy || 92;    // percent, engine-match cap
-    this.perfectStreakLimit = 10;
+    this.minMoveTime = options.minMoveTime || 500;   // ms, human floor
+    this.maxAccuracy = options.maxAccuracy || 95;    // percent engine-match cap
+    this.perfectStreakLimit = 14;
 
     this.sessionId = this._sessionId();
     this.startTime = Date.now();
 
-    this.trust = 100;
+    this.trust = 100;       // 100 = looks perfectly human
     this.flags = [];
     this.warnings = [];
 
-    this.moveTimes = [];        // { ply, ms, san }
+    this.moveTimes = [];
     this.perfectStreak = 0;
     this.totalMoves = 0;
     this.engineMatches = 0;
@@ -43,25 +42,25 @@ class AntiCheat {
   }
 
   _sessionId() {
-    return "sc_" + Math.random().toString(36).slice(2, 12) +
+    return "sc_" + Math.random().toString(36).slice(2, 14) +
            "_" + Date.now().toString(36);
   }
 
-  // Call before a move is made
+  // Call right before making a move
   startMove() {
     this._lastMoveStart = Date.now();
   }
 
-  // Validate + record a completed move
-  // legalMoves: array of legal move objects (from/to/promotion/san)
-  // move: the attempted move { from, to, promotion }
-  // engineTop: boolean whether this move matches engine's top choice
+  // Validate a completed move.
+  // legalMoves: legal move objects from chess.moves({verbose:true})
+  // move: { from, to, promotion }
+  // engineTop: does this match the engine's best move?
   validate(move, legalMoves, engineTop = false) {
     if (!this.enabled) return { ok: true, trust: this.trust };
 
-    const result = { ok: true, flags: [], trust: this.trust };
+    const result = { ok: true, flags: [], trust: this.trust, stealthy: true };
 
-    // 1. Legality check (block illegal / engine-injected moves)
+    // 1. Legality — only block truly illegal moves (engine injection)
     const legal = legalMoves.find(lm =>
       lm.from === move.from && lm.to === move.to &&
       (!move.promotion || lm.promotion === lm.promotion)
@@ -69,18 +68,20 @@ class AntiCheat {
     if (!legal) {
       result.ok = false;
       result.flags.push("illegal_move");
-      this._addFlag("illegal_move", "Move rejected: not a legal position move.", -25);
+      result.stealthy = false;
+      this._addFlag("illegal_move", "Illegal move blocked.", -30);
       return result;
     }
 
-    // 2. Timing check — human minimum
+    // 2. Timing — too fast is suspicious
     const elapsed = this._lastMoveStart ? Date.now() - this._lastMoveStart : 0;
-    if (elapsed < this.minMoveTime) {
+    if (elapsed < this.minMoveTime && elapsed > 0) {
       result.flags.push("fast_move");
-      this._addFlag("fast_move", `Move too fast (${elapsed}ms < ${this.minMoveTime}ms).`, -8);
+      result.stealthy = false;
+      this._addFlag("fast_move", `Move ${elapsed}ms (too fast, human floor ${this.minMoveTime}ms).`, -6);
     }
 
-    // 3. Accuracy / engine match
+    // 3. Accuracy tracking — engine-perfect streaks are the #1 ban trigger
     this.totalMoves++;
     if (engineTop) {
       this.engineMatches++;
@@ -93,102 +94,82 @@ class AntiCheat {
       ? Math.round((this.engineMatches / this.totalMoves) * 100)
       : 0;
 
-    if (accuracy > this.maxAccuracy && this.totalMoves >= 6) {
+    if (accuracy > this.maxAccuracy && this.totalMoves >= 8) {
       result.flags.push("high_accuracy");
+      result.stealthy = false;
       this._addFlag("high_accuracy",
-        `Accuracy ${accuracy}% exceeds ${this.maxAccuracy}% threshold.`, -10);
+        `Accuracy ${accuracy}% — play a few non-best moves to look human.`, -8);
     }
 
     if (this.perfectStreak >= this.perfectStreakLimit) {
       result.flags.push("perfect_streak");
+      result.stealthy = false;
       this._addFlag("perfect_streak",
-        `${this.perfectStreak} consecutive engine-precise moves.`, -6);
+        `${this.perfectStreak} engine-perfect moves in a row — mix it up.`, -10);
     }
 
     // Record timing
-    this.moveTimes.push({
-      ply: this.totalMoves,
-      ms: elapsed,
-      san: legal.san || ""
-    });
+    this.moveTimes.push({ ply: this.totalMoves, ms: elapsed, san: legal.san || "" });
 
-    // Trust decay / recovery
+    // Trust: decay on flags, slow recovery when clean
     const penalty = result.flags.reduce((sum, f) => sum + this._flagPenalty(f), 0);
     this.trust = Math.max(0, Math.min(100, this.trust - penalty));
-    if (result.flags.length === 0) {
-      this.trust = Math.min(100, this.trust + 1); // slow recovery
-    }
-    result.trust = this.trust;
+    if (result.flags.length === 0) this.trust = Math.min(100, this.trust + 0.5);
+    result.trust = Math.round(this.trust);
+    result.stealthy = this.trust > 70;
 
     return result;
   }
 
-  // Generate a stealthy, human-like delay for a move.
-  // Considers position complexity so thinking time looks natural.
-  stealthDelay(options = {}) {
-    const min = options.minTime || this.minMoveTime;
-    const max = options.maxTime || Math.max(this.minMoveTime * 4, 4000);
-
-    // Base random delay within range
-    let d = Math.random() * (max - min) + min;
-
-    // Occasional "deep think" on complex positions
-    if (Math.random() < 0.15) d *= 2.0;
-    // Occasional "quick instinct" move
-    if (Math.random() < 0.10) d *= 0.55;
-    // Small jitter so no two moves have identical timing
-    d *= (0.9 + Math.random() * 0.2);
-
-    return Math.round(d);
-  }
-
-  // Deliberately lower accuracy sometimes so play looks human.
-  // Returns true if this move should be a deliberate imperfection.
-  shouldBlunder(strength = "medium") {
-    const chance = {
-      random: 0.50,
-      weak: 0.40,
-      medium: 0.20,
-      strong: 0.08
-    }[strength] || 0.20;
-    return Math.random() < chance;
-  }
-
-  _flagPenalty(flag) {
-    switch (flag) {
-      case "illegal_move": return 25;
-      case "high_accuracy": return 10;
-      case "perfect_streak": return 6;
-      case "fast_move": return 8;
+  _flagPenalty(f) {
+    switch (f) {
+      case "illegal_move": return 30;
+      case "high_accuracy": return 8;
+      case "perfect_streak": return 10;
+      case "fast_move": return 6;
       default: return 0;
     }
   }
 
   _addFlag(code, description, penalty) {
-    const flag = {
+    this.flags.push({
       code, description, penalty,
       time: Date.now() - this.startTime,
       trust: this.trust
-    };
-    this.flags.push(flag);
+    });
     if (penalty < 0) {
       this.warnings.push({
         code, description,
         severity: penalty <= -15 ? "high" : "medium",
-        time: flag.time
+        time: Date.now() - this.startTime
       });
     }
+  }
+
+  // Suggest a human-like delay for the next move.
+  // Complexity (0-1) — more pieces on board = longer think.
+  suggestDelay(options = {}) {
+    const min = options.minTime || this.minMoveTime;
+    const max = options.maxTime || Math.max(this.minMoveTime * 5, 5000);
+    const complexity = options.complexity || 0.5;
+
+    let d = min + (max - min) * (0.25 + complexity * 0.6 + Math.random() * 0.25);
+
+    // Occasional instant move
+    if (Math.random() < 0.08) d *= 0.3;
+    // Occasional deep think
+    if (Math.random() < 0.10) d *= 2.2;
+
+    return Math.round(d);
   }
 
   status() {
     return {
       sessionId: this.sessionId,
       enabled: this.enabled,
-      trust: this.trust,
+      trust: Math.round(this.trust),
       totalMoves: this.totalMoves,
-      accuracy: this.totalMoves
-        ? Math.round((this.engineMatches / this.totalMoves) * 100)
-        : 0,
+      accuracy: this.totalMoves ? Math.round((this.engineMatches / this.totalMoves) * 100) : 0,
       perfectStreak: this.perfectStreak,
       flags: this.flags.length,
       warnings: this.warnings.length,
