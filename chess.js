@@ -1,8 +1,8 @@
 /* ============================================================
    Chess Test Net — chess engine
-   Bulletproof move generation: castling, en passant, promotion,
+   Bulletproof rules: castling, en passant, promotion,
    check/checkmate/stalemate, SAN notation.
-   Board storage: index = rankIndex*8 + file, rankIndex 0 = board rank 8.
+   Board storage: index = rankIndex*8 + file; rankIndex 0 = board rank 8.
    ============================================================ */
 
 const WHITE = "w";
@@ -108,7 +108,7 @@ class Chess {
     const color = colorOf(piece);
     const steps = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
     for (const [df, dr] of steps) {
-      const nf = f + df, nr = r + dr;
+      let nf = f + df, nr = r + dr;
       if (nf < 0 || nf > 7 || nr < 0 || nr > 7) continue;
       const to = sq(nf, nr);
       const target = this.board[to];
@@ -133,9 +133,9 @@ class Chess {
       if (r === startRank && this.board[two] === EMPTY) this._addMove(moves, from, two);
     }
     for (const df of [-1, 1]) {
-      const nf = f + df;
+      let nf = f + df;
       if (nf < 0 || nf > 7) continue;
-      const to = sq(nf, r + dir);
+      let to = sq(nf, r + dir);
       if (r + dir < 0 || r + dir > 7) continue;
       const target = this.board[to];
       if (target !== EMPTY && isOpponent(target, color)) {
@@ -153,7 +153,7 @@ class Chess {
     const color = colorOf(piece);
     const steps = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
     for (const [df, dr] of steps) {
-      const nf = f + df, nr = r + dr;
+      let nf = f + df, nr = r + dr;
       if (nf < 0 || nf > 7 || nr < 0 || nr > 7) continue;
       const to = sq(nf, nr);
       const target = this.board[to];
@@ -455,7 +455,6 @@ class Chess {
     if (this.castling.q) s += "q";
     return s || "-";
   }
-
   enPassantFen() { return this.enPassant === -1 ? "-" : sqName(this.enPassant); }
   square(i) { return this.board[i]; }
   legalMoves() { return this.moves({ verbose: true }); }

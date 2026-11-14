@@ -22,14 +22,14 @@
 class AntiCheat {
   constructor(options = {}) {
     this.enabled = options.enabled !== false;
-    this.minMoveTime = options.minMoveTime || 500;   // ms, human floor
-    this.maxAccuracy = options.maxAccuracy || 95;    // percent engine-match cap
-    this.perfectStreakLimit = 14;
+    this.minMoveTime = options.minMoveTime || 500;
+    this.maxAccuracy = options.maxAccuracy || 95;
+    this.perfectStreakLimit = options.perfectStreakLimit || 14;
 
     this.sessionId = this._sessionId();
     this.startTime = Date.now();
 
-    this.trust = 100;       // 100 = looks perfectly human
+    this.trust = 100;
     this.flags = [];
     this.warnings = [];
 
@@ -42,19 +42,13 @@ class AntiCheat {
   }
 
   _sessionId() {
-    return "sc_" + Math.random().toString(36).slice(2, 14) +
-           "_" + Date.now().toString(36);
+    return "sc_" + Math.random().toString(36).slice(2, 14) + "_" + Date.now().toString(36);
   }
 
-  // Call right before making a move
   startMove() {
     this._lastMoveStart = Date.now();
   }
 
-  // Validate a completed move.
-  // legalMoves: legal move objects from chess.moves({verbose:true})
-  // move: { from, to, promotion }
-  // engineTop: does this match the engine's best move?
   validate(move, legalMoves, engineTop = false) {
     if (!this.enabled) return { ok: true, trust: this.trust };
 
@@ -108,10 +102,8 @@ class AntiCheat {
         `${this.perfectStreak} engine-perfect moves in a row — mix it up.`, -10);
     }
 
-    // Record timing
     this.moveTimes.push({ ply: this.totalMoves, ms: elapsed, san: legal.san || "" });
 
-    // Trust: decay on flags, slow recovery when clean
     const penalty = result.flags.reduce((sum, f) => sum + this._flagPenalty(f), 0);
     this.trust = Math.max(0, Math.min(100, this.trust - penalty));
     if (result.flags.length === 0) this.trust = Math.min(100, this.trust + 0.5);
@@ -147,7 +139,6 @@ class AntiCheat {
   }
 
   // Suggest a human-like delay for the next move.
-  // Complexity (0-1) — more pieces on board = longer think.
   suggestDelay(options = {}) {
     const min = options.minTime || this.minMoveTime;
     const max = options.maxTime || Math.max(this.minMoveTime * 5, 5000);
@@ -155,9 +146,7 @@ class AntiCheat {
 
     let d = min + (max - min) * (0.25 + complexity * 0.6 + Math.random() * 0.25);
 
-    // Occasional instant move
     if (Math.random() < 0.08) d *= 0.3;
-    // Occasional deep think
     if (Math.random() < 0.10) d *= 2.2;
 
     return Math.round(d);
