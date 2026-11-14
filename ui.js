@@ -32,18 +32,13 @@ class UI {
     this.turnDotWhite = document.querySelector(".turn-dot-white");
     this.turnDotBlack = document.querySelector(".turn-dot-black");
 
-    this.footerStatus = document.getElementById("footerStatus");
-    this.footerAntiCheat = document.getElementById("footerAntiCheat");
-
     this.selectedSquare = null;
     this.highlighted = [];
     this.lastMove = null;
     this.checkSquare = null;
 
     this.onSquareClick = null;
-    this.onSettingsChange = null;
 
-    this._bindSettings();
     this._coordLabels();
   }
 
@@ -61,7 +56,7 @@ class UI {
     document.documentElement.setAttribute("data-theme", theme || "green");
     this.boardEl.innerHTML = "";
 
-    const ranks = [7, 6, 5, 4, 3, 2, 1, 0]; // display rank 8 at top
+    const ranks = [7, 6, 5, 4, 3, 2, 1, 0];
     const files = [0, 1, 2, 3, 4, 5, 6, 7];
 
     ranks.forEach(r => {
@@ -80,7 +75,6 @@ class UI {
           sqEl.dataset.color = piece === piece.toUpperCase() ? "white" : "black";
         }
 
-        // Highlights
         if (this.selectedSquare === idx) sqEl.classList.add("selected");
         if (this.highlighted.includes(idx)) sqEl.classList.add("highlight");
         if (this.lastMove && (this.lastMove.from === idx || this.lastMove.to === idx)) {
@@ -94,26 +88,11 @@ class UI {
     });
   }
 
-  setHighlights(squares) {
-    this.highlighted = squares || [];
-  }
-
-  setSelection(idx) {
-    this.selectedSquare = idx;
-  }
-
-  setLastMove(from, to) {
-    this.lastMove = { from, to };
-  }
-
-  setCheck(idx) {
-    this.checkSquare = idx;
-  }
-
-  clearSelection() {
-    this.selectedSquare = null;
-    this.highlighted = [];
-  }
+  setHighlights(squares) { this.highlighted = squares || []; }
+  setSelection(idx) { this.selectedSquare = idx; }
+  setLastMove(from, to) { this.lastMove = { from, to }; }
+  setCheck(idx) { this.checkSquare = idx; }
+  clearSelection() { this.selectedSquare = null; this.highlighted = []; }
 
   _onSquare(idx) {
     if (this.onSquareClick) this.onSquareClick(idx);
@@ -149,12 +128,9 @@ class UI {
     pair.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  clearMoves() {
-    this.moveListEl.innerHTML = "";
-  }
+  clearMoves() { this.moveListEl.innerHTML = ""; }
 
   setCurrentMove(index) {
-    // highlight the current move pair by index
     const pairs = this.moveListEl.querySelectorAll(".move-pair");
     pairs.forEach((p, i) => p.classList.toggle("current", i === index));
   }
@@ -213,81 +189,22 @@ class UI {
   }
 
   setFooter(text, antiCheatText) {
-    if (this.footerStatus) this.footerStatus.textContent = text;
-    if (this.footerAntiCheat && antiCheatText !== undefined) {
-      this.footerAntiCheat.textContent = antiCheatText;
-    }
+    const fs = document.getElementById("footerStatus");
+    const fac = document.getElementById("footerAntiCheat");
+    if (fs) fs.textContent = text;
+    if (fac && antiCheatText !== undefined) fac.textContent = antiCheatText;
   }
 
   // -----------------------------------------------------------------
   // Modals
   // -----------------------------------------------------------------
 
-  openModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.add("open");
-  }
-
-  closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove("open");
-  }
-
-  bind(modalId, closeCallback) {
-    const el = document.getElementById(modalId);
-    const backdrop = document.getElementById(modalId + "Backdrop") ||
-                   document.getElementById("goBackdrop");
-    const closeBtn = document.getElementById("btnClose" + modalId.replace("Modal", "")) ||
-                     document.getElementById("btnCloseSettings") ||
-                     document.getElementById("btnCloseGameOver");
-
-    const close = () => { this.closeModal(modalId); if (closeCallback) closeCallback(); };
-
-    if (backdrop) backdrop.addEventListener("click", close);
-    const btnClose = document.getElementById("btnCloseSettings") ||
-                     document.getElementById("btnCloseGameOver");
-    if (btnClose) btnClose.addEventListener("click", close);
-  }
+  openModal(id) { const el = document.getElementById(id); if (el) el.classList.add("open"); }
+  closeModal(id) { const el = document.getElementById(id); if (el) el.classList.remove("open"); }
 
   // -----------------------------------------------------------------
   // Settings wiring
   // -----------------------------------------------------------------
-
-  _bindSettings() {
-    const sync = (fromId, toId) => {
-      const from = document.getElementById(fromId);
-      const to = document.getElementById(toId);
-      if (!from || !to) return;
-      from.addEventListener("input", () => { to.value = from.value; });
-      to.addEventListener("input", () => { from.value = to.value; });
-    };
-
-    sync("autoMoveEnabled", "smAutoMoveEnabled");
-    sync("humanizeEnabled", "smHumanizeEnabled");
-    sync("moveTimeMin", "smMoveTimeMin");
-    sync("moveTimeMax", "smMoveTimeMax");
-    sync("gameMode", "smGameMode");
-    sync("timeControl", "smTimeControl");
-    sync("boardTheme", "smBoardTheme");
-    sync("botStrength", "smBotStrength");
-    sync("aiPersonality", "smAiPersonality");
-
-    // Value labels for sliders
-    const wireLabel = (id, labelId, unit) => {
-      const el = document.getElementById(id);
-      const lab = document.getElementById(labelId);
-      if (!el || !lab) return;
-      const update = () => { lab.textContent = el.value + unit; };
-      el.addEventListener("input", update);
-      update();
-    };
-    wireLabel("moveTimeMin", "valMoveTimeMin", "s");
-    wireLabel("moveTimeMax", "valMoveTimeMax", "s");
-    wireLabel("smMoveTimeMin", "smValMoveTimeMin", "s");
-    wireLabel("smMoveTimeMax", "smValMoveTimeMax", "s");
-    wireLabel("smAcMinTime", "smValAcMinTime", "s");
-    wireLabel("smAcMaxAcc", "smValAcMaxAcc", "%");
-  }
 
   applyToModal(settings) {
     const set = (id, val) => {
@@ -296,22 +213,130 @@ class UI {
       if (el.type === "checkbox") el.checked = !!val;
       else el.value = val;
     };
+    // Gameplay
     set("smGameMode", settings.gameMode);
+    set("smResignAllowed", settings.resignAllowed);
+    set("smDrawOffersAllowed", settings.drawOffersAllowed);
+    set("smPromotionPrompt", settings.promotionPrompt);
+    set("smAutoQueenPromotion", settings.autoQueenPromotion);
+    set("smMoveSound", settings.moveSound !== false);
     set("smTimeControl", settings.timeControl);
-    set("smIncrement", settings.increment);
+    set("smCustomTimeMinutes", settings.customTimeMinutes);
+    set("smIncrementSeconds", settings.incrementSeconds);
+    set("smDelaySeconds", settings.delaySeconds);
+    set("smAutoFlagOnTimeout", settings.autoFlagOnTimeout);
+    // Board
     set("smBoardTheme", settings.boardTheme);
     set("smPieceSet", settings.pieceSet);
+    set("smSquareSize", settings.squareSize);
+    set("smBoardBorderWidth", settings.boardBorderWidth);
+    set("smCoordinatesShown", settings.coordinatesShown);
+    set("smLastMoveHighlight", settings.lastMoveHighlight);
+    set("smSelectedSquareHighlight", settings.selectedSquareHighlight);
+    set("smLegalMoveHighlights", settings.legalMoveHighlights);
+    set("smCheckHighlight", settings.checkHighlight);
+    set("smAnimationSpeed", settings.animationSpeed);
+    set("smPieceDropShadow", settings.pieceDropShadow);
+    set("smBoardReflection", settings.boardReflection);
+    set("smGlowIntensity", settings.glowIntensity);
+    set("smGlassmorphismOpacity", settings.glassmorphismOpacity);
+    set("smBackgroundBlur", settings.backgroundBlur);
+    set("smFloatingParticles", settings.floatingParticles);
+    set("smConfettiOnGameEnd", settings.confettiOnGameEnd);
+    set("smCursorTrail", settings.cursorTrail);
+    set("smHoverEffects", settings.hoverEffects);
+    set("smClickRipple", settings.clickRipple);
+    set("smSmoothPieceMovement", settings.smoothPieceMovement);
+    set("smMoveTrail", settings.moveTrail);
+    // AI
     set("smAutoMoveEnabled", settings.autoMoveEnabled);
     set("smHumanizeEnabled", settings.humanizeEnabled);
-    set("smMoveTimeMin", settings.moveTimeMin);
-    set("smMoveTimeMax", settings.moveTimeMax);
     set("smBotStrength", settings.botStrength);
     set("smAiPersonality", settings.aiPersonality);
+    set("smMoveTimeMin", settings.moveTimeMin);
+    set("smMoveTimeMax", settings.moveTimeMax);
+    set("smMistakeFrequency", settings.mistakeFrequency);
+    set("smBlunderFrequency", settings.blunderFrequency);
+    set("smTimePressureSimulation", settings.timePressureSimulation);
+    // Stealth
     set("smAntiCheatEnabled", settings.antiCheatEnabled);
+    set("smStealthMode", settings.stealthMode);
     set("smAcMinTime", settings.acMinTime);
     set("smAcMaxAcc", settings.acMaxAcc);
-    set("smStartElo", settings.startElo);
+    set("smPerfectStreakLimit", settings.perfectStreakLimit);
+    set("smTrustScoreVisible", settings.trustScoreVisible);
+    set("smHumanizeTiming", settings.humanizeTiming);
+    set("smOccasionalBlunders", settings.occasionalBlunders);
+    set("smTimePressureBehavior", settings.timePressureBehavior);
+    set("smMouseMovementSimulation", settings.mouseMovementSimulation);
+    set("smClickTimingVariance", settings.clickTimingVariance);
+    set("smMoveHesitation", settings.moveHesitation);
+    set("smDeepThinkPauses", settings.deepThinkPauses);
+    set("smUndetectableMode", settings.undetectableMode);
+    // Sound
+    set("smSoundEnabled", settings.soundEnabled);
+    set("smMasterVolume", settings.masterVolume);
+    set("smMoveSoundVolume", settings.moveSoundVolume);
+    set("smCaptureSoundVolume", settings.captureSoundVolume);
+    set("smCastleSoundVolume", settings.castleSoundVolume);
+    set("smPromotionSoundVolume", settings.promotionSoundVolume);
+    set("smCheckSoundVolume", settings.checkSoundVolume);
+    set("smGameOverSoundVolume", settings.gameOverSoundVolume);
+    set("smUIClickSound", settings.uiclickSound);
+    set("smSoundPack", settings.soundPack);
+    set("smBackgroundMusic", settings.backgroundMusic);
+    set("smMusicVolume", settings.musicVolume);
+    set("smMusicTrack", settings.musicTrack);
+    // Elo
+    set("smStartEloWhite", settings.startEloWhite);
+    set("smStartEloBlack", settings.startEloBlack);
     set("smKFactor", settings.kFactor);
+    set("smEloDisplay", settings.eloDisplay);
+    set("smEloChangeAnimation", settings.eloChangeAnimation);
+    set("smRatingHistory", settings.ratingHistory);
+    set("smBestEloTracking", settings.bestEloTracking);
+    set("smWinStreakTracking", settings.winStreakTracking);
+    set("smLossStreakTracking", settings.lossStreakTracking);
+    set("smDrawStreakTracking", settings.drawStreakTracking);
+    set("smPerformanceRating", settings.performanceRating);
+    set("smAccuracyTracking", settings.accuracyTracking);
+    // Time
+    set("smTimePreset", settings.timePreset);
+    set("smLowTimeWarningSeconds", settings.lowTimeWarningSeconds);
+    set("smLowTimePulse", settings.lowTimePulse);
+    set("smClockDisplayFormat", settings.clockDisplayFormat);
+    set("smClockColor", settings.clockColor);
+    set("smClockShadow", settings.clockShadow);
+    set("smShowOpponentClock", settings.showOpponentClock);
+    set("smTimePenaltyPerMove", settings.timePenaltyPerMove);
+    // Notify
+    set("smToastNotifications", settings.toastNotifications);
+    set("smGameOverAlert", settings.gameOverAlert);
+    set("smMoveMadeAlert", settings.moveMadeAlert);
+    set("smCheckAlert", settings.checkAlert);
+    set("smLowTimeAlert", settings.lowTimeAlert);
+    set("smSoundNotifications", settings.soundNotifications);
+    set("smDesktopNotifications", settings.desktopNotifications);
+    set("smNotificationDuration", settings.notificationDuration);
+    set("smNotificationPosition", settings.notificationPosition);
+    // Advanced
+    set("smEngineAnalysisDepth", settings.engineAnalysisDepth);
+    set("smShowEvaluationBar", settings.showEvaluationBar);
+    set("smShowBestMoveLine", settings.showBestMoveLine);
+    set("smShowPrincipalVariation", settings.showPrincipalVariation);
+    set("smAutoFlipBoard", settings.autoFlipBoard);
+    set("smCoordinatesStyle", settings.coordinatesStyle);
+    set("smMoveListFont", settings.moveListFont);
+    set("smMoveListDensity", settings.moveListDensity);
+    set("smCompactMode", settings.compactMode);
+    set("smDarkMode", settings.darkMode);
+    set("smHighContrast", settings.highContrast);
+    set("smReducedMotion", settings.reducedMotion);
+    set("smKeyboardShortcuts", settings.keyboardShortcuts);
+    set("smExportFormat", settings.exportFormat);
+    set("smAutoSaveGames", settings.autoSaveGames);
+    set("smLocalOnlyMode", settings.localOnlyMode);
+    set("smDebugMode", settings.debugMode);
   }
 
   readFromModal() {
@@ -319,28 +344,124 @@ class UI {
     const gc = (id) => document.getElementById(id).checked;
     return {
       gameMode: g("smGameMode"),
+      resignAllowed: gc("smResignAllowed"),
+      drawOffersAllowed: gc("smDrawOffersAllowed"),
+      promotionPrompt: gc("smPromotionPrompt"),
+      autoQueenPromotion: gc("smAutoQueenPromotion"),
+      moveSound: gc("smMoveSound"),
       timeControl: g("smTimeControl"),
-      increment: parseInt(g("smIncrement")) || 0,
+      customTimeMinutes: parseInt(g("smCustomTimeMinutes")) || 10,
+      incrementSeconds: parseInt(g("smIncrementSeconds")) || 0,
+      delaySeconds: parseInt(g("smDelaySeconds")) || 0,
+      autoFlagOnTimeout: gc("smAutoFlagOnTimeout"),
       boardTheme: g("smBoardTheme"),
       pieceSet: g("smPieceSet"),
+      squareSize: parseInt(g("smSquareSize")) || 60,
+      boardBorderWidth: parseInt(g("smBoardBorderWidth")) || 14,
+      coordinatesShown: gc("smCoordinatesShown"),
+      lastMoveHighlight: gc("smLastMoveHighlight"),
+      selectedSquareHighlight: gc("smSelectedSquareHighlight"),
+      legalMoveHighlights: gc("smLegalMoveHighlights"),
+      checkHighlight: gc("smCheckHighlight"),
+      animationSpeed: parseFloat(g("smAnimationSpeed")) || 1,
+      pieceDropShadow: gc("smPieceDropShadow"),
+      boardReflection: gc("smBoardReflection"),
+      glowIntensity: parseFloat(g("smGlowIntensity")) || 0.5,
+      glassmorphismOpacity: parseFloat(g("smGlassmorphismOpacity")) || 0.72,
+      backgroundBlur: parseInt(g("smBackgroundBlur")) || 20,
+      floatingParticles: gc("smFloatingParticles"),
+      confettiOnGameEnd: gc("smConfettiOnGameEnd"),
+      cursorTrail: gc("smCursorTrail"),
+      hoverEffects: gc("smHoverEffects"),
+      clickRipple: gc("smClickRipple"),
+      smoothPieceMovement: gc("smSmoothPieceMovement"),
+      moveTrail: gc("smMoveTrail"),
       autoMoveEnabled: gc("smAutoMoveEnabled"),
       humanizeEnabled: gc("smHumanizeEnabled"),
-      moveTimeMin: parseFloat(g("smMoveTimeMin")),
-      moveTimeMax: parseFloat(g("smMoveTimeMax")),
       botStrength: g("smBotStrength"),
       aiPersonality: g("smAiPersonality"),
+      moveTimeMin: parseFloat(g("smMoveTimeMin")) || 1.5,
+      moveTimeMax: parseFloat(g("smMoveTimeMax")) || 5,
+      mistakeFrequency: parseFloat(g("smMistakeFrequency")) || 0.25,
+      blunderFrequency: parseFloat(g("smBlunderFrequency")) || 0.05,
+      timePressureSimulation: gc("smTimePressureSimulation"),
       antiCheatEnabled: gc("smAntiCheatEnabled"),
-      acMinTime: parseFloat(g("smAcMinTime")),
-      acMaxAcc: parseInt(g("smAcMaxAcc")),
-      startElo: parseInt(g("smStartElo")) || 1500,
-      kFactor: parseInt(g("smKFactor")) || 32
+      stealthMode: gc("smStealthMode"),
+      acMinTime: parseFloat(g("smAcMinTime")) || 0.5,
+      acMaxAcc: parseInt(g("smAcMaxAcc")) || 95,
+      perfectStreakLimit: parseInt(g("smPerfectStreakLimit")) || 14,
+      trustScoreVisible: gc("smTrustScoreVisible"),
+      humanizeTiming: gc("smHumanizeTiming"),
+      occasionalBlunders: gc("smOccasionalBlunders"),
+      timePressureBehavior: gc("smTimePressureBehavior"),
+      mouseMovementSimulation: gc("smMouseMovementSimulation"),
+      clickTimingVariance: gc("smClickTimingVariance"),
+      moveHesitation: gc("smMoveHesitation"),
+      deepThinkPauses: gc("smDeepThinkPauses"),
+      undetectableMode: gc("smUndetectableMode"),
+      soundEnabled: gc("smSoundEnabled"),
+      masterVolume: parseFloat(g("smMasterVolume")) || 0.8,
+      moveSoundVolume: parseFloat(g("smMoveSoundVolume")) || 0.6,
+      captureSoundVolume: parseFloat(g("smCaptureSoundVolume")) || 0.8,
+      castleSoundVolume: parseFloat(g("smCastleSoundVolume")) || 0.7,
+      promotionSoundVolume: parseFloat(g("smPromotionSoundVolume")) || 0.9,
+      checkSoundVolume: parseFloat(g("smCheckSoundVolume")) || 0.9,
+      gameOverSoundVolume: parseFloat(g("smGameOverSoundVolume")) || 1,
+      uiclickSound: gc("smUIClickSound"),
+      soundPack: g("smSoundPack"),
+      backgroundMusic: gc("smBackgroundMusic"),
+      musicVolume: parseFloat(g("smMusicVolume")) || 0.3,
+      musicTrack: g("smMusicTrack"),
+      startEloWhite: parseInt(g("smStartEloWhite")) || 1500,
+      startEloBlack: parseInt(g("smStartEloBlack")) || 1500,
+      kFactor: parseInt(g("smKFactor")) || 32,
+      eloDisplay: gc("smEloDisplay"),
+      eloChangeAnimation: gc("smEloChangeAnimation"),
+      ratingHistory: gc("smRatingHistory"),
+      bestEloTracking: gc("smBestEloTracking"),
+      winStreakTracking: gc("smWinStreakTracking"),
+      lossStreakTracking: gc("smLossStreakTracking"),
+      drawStreakTracking: gc("smDrawStreakTracking"),
+      performanceRating: gc("smPerformanceRating"),
+      accuracyTracking: gc("smAccuracyTracking"),
+      timePreset: g("smTimePreset"),
+      lowTimeWarningSeconds: parseInt(g("smLowTimeWarningSeconds")) || 30,
+      lowTimePulse: gc("smLowTimePulse"),
+      clockDisplayFormat: g("smClockDisplayFormat"),
+      clockColor: g("smClockColor"),
+      clockShadow: gc("smClockShadow"),
+      showOpponentClock: gc("smShowOpponentClock"),
+      timePenaltyPerMove: parseInt(g("smTimePenaltyPerMove")) || 0,
+      toastNotifications: gc("smToastNotifications"),
+      gameOverAlert: gc("smGameOverAlert"),
+      moveMadeAlert: gc("smMoveMadeAlert"),
+      checkAlert: gc("smCheckAlert"),
+      lowTimeAlert: gc("smLowTimeAlert"),
+      soundNotifications: gc("smSoundNotifications"),
+      desktopNotifications: gc("smDesktopNotifications"),
+      notificationDuration: parseInt(g("smNotificationDuration")) || 3000,
+      notificationPosition: g("smNotificationPosition"),
+      engineAnalysisDepth: parseInt(g("smEngineAnalysisDepth")) || 3,
+      showEvaluationBar: gc("smShowEvaluationBar"),
+      showBestMoveLine: gc("smShowBestMoveLine"),
+      showPrincipalVariation: gc("smShowPrincipalVariation"),
+      autoFlipBoard: gc("smAutoFlipBoard"),
+      coordinatesStyle: g("smCoordinatesStyle"),
+      moveListFont: g("smMoveListFont"),
+      moveListDensity: g("smMoveListDensity"),
+      compactMode: gc("smCompactMode"),
+      darkMode: gc("smDarkMode"),
+      highContrast: gc("smHighContrast"),
+      reducedMotion: gc("smReducedMotion"),
+      keyboardShortcuts: gc("smKeyboardShortcuts"),
+      exportFormat: g("smExportFormat"),
+      autoSaveGames: gc("smAutoSaveGames"),
+      localOnlyMode: gc("smLocalOnlyMode"),
+      debugMode: gc("smDebugMode")
     };
   }
 
-  // -----------------------------------------------------------------
   // Toasts
-  // -----------------------------------------------------------------
-
   toast(message, type = "info") {
     const container = document.getElementById("toastContainer");
     const el = document.createElement("div");

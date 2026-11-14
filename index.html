@@ -3,41 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Chess Test Net — beautiful chess with anti-cheat, auto-move, and Elo" />
+  <meta name="description" content="Chess Test Net — Premium chess with anti-cheat, human-like auto-move, Elo, and 120+ settings" />
   <title>Chess Test Net</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- Toast / notification area -->
+  <div id="confetti"></div>
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- App shell -->
   <div class="app" id="app">
 
-    <!-- Header -->
     <header class="app-header">
       <div class="brand">
         <div class="brand-mark">♟</div>
         <div>
           <div class="brand-name">Chess Test Net</div>
-          <div class="brand-tag">Anti-cheat protected • Auto-move • Elo rated</div>
+          <div class="brand-tag">Anti-cheat • Human-like bot • Elo rated • 120+ settings</div>
         </div>
       </div>
       <div class="header-actions">
         <button class="btn btn-icon" id="btnSettings" title="Settings"><span class="icon">⚙</span></button>
         <button class="btn btn-icon" id="btnNewGame" title="New game"><span class="icon">↻</span></button>
-        <button class="btn btn-icon" id="btnOpenTab" title="Open in new tab" style="font-size:14px;">↗</button>
+        <button class="btn btn-icon" id="btnOpenTab" title="Open in new tab"><span class="icon">↗</span></button>
       </div>
     </header>
 
-    <!-- Main game area -->
     <main class="game-shell">
 
-      <!-- Left sidebar: info & stats -->
       <aside class="sidebar sidebar-left">
         <div class="card player-card" id="cardWhite">
           <div class="player-header">
@@ -55,16 +51,15 @@
         </div>
       </aside>
 
-      <!-- Center: board -->
       <section class="board-wrap">
         <div class="board-header">
-          <div class="turn-indicator" id="turnIndicator">
+          <div class="turn-indicator">
             <span class="turn-dot turn-dot-white"></span>
             <span id="turnText">White to move</span>
           </div>
           <div class="board-actions">
-            <button class="btn btn-small" id="btnResign" title="Resign">Resign</button>
-            <button class="btn btn-small" id="btnDraw" title="Offer draw">Draw</button>
+            <button class="btn btn-small btn-danger" id="btnResign" title="Resign">Resign</button>
+            <button class="btn btn-small btn-outline" id="btnDraw" title="Offer draw">Draw</button>
           </div>
         </div>
         <div class="board-container">
@@ -81,7 +76,6 @@
         </div>
       </section>
 
-      <!-- Right sidebar: opponent & settings preview -->
       <aside class="sidebar sidebar-right">
         <div class="card player-card" id="cardBlack">
           <div class="player-header">
@@ -99,48 +93,46 @@
         </div>
 
         <div class="card settings-card">
-          <div class="card-title">Auto-Move &amp; Anti-Cheat</div>
+          <div class="card-title">Auto-Move &amp; Stealth</div>
           <div class="settings-list">
             <div class="setting-row">
               <label>Auto-move (bot)</label>
-              <div class="toggle-wrap">
-                <input type="checkbox" id="autoMoveEnabled" checked />
-                <span class="toggle"></span>
-              </div>
+              <div class="toggle-wrap"><input type="checkbox" id="autoMoveEnabled" checked /><span class="toggle"></span></div>
             </div>
             <div class="setting-row">
               <label>Humanize moves</label>
-              <div class="toggle-wrap">
-                <input type="checkbox" id="humanizeEnabled" checked />
-                <span class="toggle"></span>
-              </div>
-              <span class="setting-hint">Adds small mistakes &amp; natural timing</span>
+              <div class="toggle-wrap"><input type="checkbox" id="humanizeEnabled" checked /><span class="toggle"></span></div>
+              <span class="setting-hint">Adds natural mistakes &amp; timing</span>
             </div>
             <div class="setting-row">
               <label>Min move time (s)</label>
               <input type="range" id="moveTimeMin" min="0.5" max="10" step="0.5" value="1.5" />
-              <span class="setting-value" id="valMoveTimeMin">1.5</span>
+              <span class="setting-value" id="valMoveTimeMin">1.5s</span>
             </div>
             <div class="setting-row">
               <label>Max move time (s)</label>
               <input type="range" id="moveTimeMax" min="1" max="30" step="0.5" value="5" />
-              <span class="setting-value" id="valMoveTimeMax">5</span>
+              <span class="setting-value" id="valMoveTimeMax">5s</span>
             </div>
             <div class="setting-row">
               <label>Bot strength</label>
               <select id="botStrength">
                 <option value="random">Random</option>
-                <option value="weak" selected>Weak</option>
-                <option value="medium">Medium</option>
+                <option value="weak">Weak</option>
+                <option value="medium" selected>Medium</option>
                 <option value="strong">Strong</option>
+                <option value="master">Master</option>
+                <option value="grandmaster">Grandmaster</option>
               </select>
             </div>
             <div class="setting-row">
               <label>AI personality</label>
-              <select id="aiPersonality">
-                <option value="balanced">Balanced</option>
+              <select id="botPersonality">
+                <option value="balanced" selected>Balanced</option>
                 <option value="aggressive">Aggressive</option>
                 <option value="positional">Positional</option>
+                <option value="tactical">Tactical</option>
+                <option value="chaotic">Chaotic</option>
               </select>
             </div>
             <div class="setting-row">
@@ -151,21 +143,22 @@
               </select>
             </div>
             <div class="setting-row">
-              <label>Time control</label>
-              <select id="timeControl">
-                <option value="none">None</option>
-                <option value="blitz" selected>Blitz (5 min)</option>
-                <option value="bullet">Bullet (2 min)</option>
-                <option value="rapid">Rapid (15 min)</option>
-              </select>
-            </div>
-            <div class="setting-row">
               <label>Board theme</label>
               <select id="boardTheme">
                 <option value="green" selected>Green</option>
                 <option value="blue">Blue</option>
                 <option value="wood">Wood</option>
                 <option value="dark">Dark</option>
+                <option value="marble">Marble</option>
+                <option value="neon">Neon</option>
+                <option value="cat">Cat</option>
+                <option value="space">Space</option>
+                <option value="ocean">Ocean</option>
+                <option value="fire">Fire</option>
+                <option value="ice">Ice</option>
+                <option value="candy">Candy</option>
+                <option value="retro">Retro</option>
+                <option value="minimal">Minimal</option>
               </select>
             </div>
           </div>
@@ -174,15 +167,14 @@
 
     </main>
 
-    <!-- Footer / status bar -->
     <footer class="app-footer">
       <div class="footer-left">
         <span id="footerStatus">Ready</span>
         <span class="divider">•</span>
-        <span id="footerAntiCheat">Anti-cheat: active</span>
+        <span id="footerAntiCheat">Anti-cheat: active · stealth mode</span>
       </div>
       <div class="footer-right">
-        <span class="footer-version">v1.0.0 · test-net</span>
+        <span class="footer-version">Premium v2.0 · test-net</span>
       </div>
     </footer>
 
@@ -197,7 +189,6 @@
         <button class="btn-icon-close" id="btnCloseSettings">✕</button>
       </div>
       <div class="modal-body settings-scroll">
-        <!-- Category tabs -->
         <div class="settings-tabs">
           <button class="tab-btn active" data-tab="gameplay">Gameplay</button>
           <button class="tab-btn" data-tab="board">Board &amp; Visuals</button>
@@ -212,11 +203,10 @@
         </div>
 
         <div class="tab-content">
-          <!-- ===== GAMEPLAY ===== -->
           <div class="tab-pane active" id="tab-gameplay">
             <div class="settings-section">
               <div class="section-title">General</div>
-              <div class="setting-row"><label>Game mode</label><select id="smGameMode"><option value="pvb">You vs Bot</option><option value="pvp">You vs You (hotseat)</option><option value="puzzle">Puzzle Mode</option><option value="engine">Engine vs Engine</option></select></div>
+              <div class="setting-row"><label>Game mode</label><select id="smGameMode"><option value="pvb">You vs Bot</option><option value="pvp">You vs You</option><option value="puzzle">Puzzle</option><option value="engine">Engine vs Engine</option></select></div>
               <div class="setting-row"><label>Resign allowed</label><div class="toggle-wrap"><input type="checkbox" id="smResignAllowed" checked /><span class="toggle"></span></div></div>
               <div class="setting-row"><label>Draw offers allowed</label><div class="toggle-wrap"><input type="checkbox" id="smDrawOffersAllowed" checked /><span class="toggle"></span></div></div>
               <div class="setting-row"><label>Promotion prompt</label><div class="toggle-wrap"><input type="checkbox" id="smPromotionPrompt" checked /><span class="toggle"></span></div></div>
@@ -233,7 +223,6 @@
             </div>
           </div>
 
-          <!-- ===== BOARD & VISUALS ===== -->
           <div class="tab-pane" id="tab-board">
             <div class="settings-section">
               <div class="section-title">Board Theme</div>
@@ -265,7 +254,6 @@
             </div>
           </div>
 
-          <!-- ===== AI & AUTO-MOVE ===== -->
           <div class="tab-pane" id="tab-ai">
             <div class="settings-section">
               <div class="section-title">Auto-Move Bot</div>
@@ -281,7 +269,6 @@
             </div>
           </div>
 
-          <!-- ===== ANTI-CHEAT & STEALTH ===== -->
           <div class="tab-pane" id="tab-stealth">
             <div class="settings-section">
               <div class="section-title">Anti-Cheat / Stealth</div>
@@ -302,7 +289,6 @@
             </div>
           </div>
 
-          <!-- ===== SOUND & AUDIO ===== -->
           <div class="tab-pane" id="tab-sound">
             <div class="settings-section">
               <div class="section-title">Audio</div>
@@ -322,7 +308,6 @@
             </div>
           </div>
 
-          <!-- ===== ELO & RATINGS ===== -->
           <div class="tab-pane" id="tab-elo">
             <div class="settings-section">
               <div class="section-title">Ratings</div>
@@ -341,7 +326,6 @@
             </div>
           </div>
 
-          <!-- ===== TIME CONTROLS ===== -->
           <div class="tab-pane" id="tab-time">
             <div class="settings-section">
               <div class="section-title">Clocks</div>
@@ -356,7 +340,6 @@
             </div>
           </div>
 
-          <!-- ===== NOTIFICATIONS ===== -->
           <div class="tab-pane" id="tab-notify">
             <div class="settings-section">
               <div class="section-title">Alerts</div>
@@ -372,7 +355,6 @@
             </div>
           </div>
 
-          <!-- ===== ADVANCED ===== -->
           <div class="tab-pane" id="tab-advanced">
             <div class="settings-section">
               <div class="section-title">Experimental</div>
@@ -396,7 +378,6 @@
             </div>
           </div>
 
-          <!-- ===== DANGER ZONE ===== -->
           <div class="tab-pane" id="tab-danger">
             <div class="settings-section danger-zone">
               <div class="section-title">Danger Zone</div>
@@ -411,10 +392,6 @@
       <div class="modal-footer">
         <button class="btn btn-outline" id="btnCloseSettings2">Close</button>
         <button class="btn btn-primary btn-block" id="btnSaveSettings">Save all changes</button>
-      </div>      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" id="btnCloseSettings2">Close</button>
-        <button class="btn btn-primary" id="btnSaveSettings">Save changes</button>
       </div>
     </div>
   </div>

@@ -1,7 +1,7 @@
 /* ============================================================
    Chess Test Net — main application
    Fully integrated: human-like AI, stealth anti-cheat, sound,
-   particles, Elo, settings (120+), smooth UX.
+   particles, Elo, 120+ settings, smooth UX.
    ============================================================ */
 
 (() => {
@@ -27,7 +27,7 @@
   });
 
   // -----------------------------------------------------------------
-  // Sound (Web Audio API)
+  // Sound (Web Audio API, no external files)
   // -----------------------------------------------------------------
   let audioCtx = null;
   let soundEnabled = false;
@@ -66,7 +66,7 @@
         ui:     { f: 900, t: 0.03, type: "sine" }
       }[type] || { f: 400, t: 0.05, type: "sine" };
 
-      const v = vol * ((cfg.type === "sine" && type === "move") ? settings.get("moveSoundVolume") : 1);
+      const v = vol;
       if (cfg.f3) {
         osc.frequency.setValueAtTime(cfg.f, now);
         osc.frequency.linearRampToValueAtTime(cfg.f2, now + cfg.t / 3);
@@ -164,9 +164,6 @@
     document.getElementById("btnPlayAgain").addEventListener("click", () => { closeGameOver(); newGame(); });
   }
 
-  // -----------------------------------------------------------------
-  // Settings tabs
-  // -----------------------------------------------------------------
   function setupSettingsTabs() {
     const tabs = document.querySelectorAll(".tab-btn");
     const panes = document.querySelectorAll(".tab-pane");
@@ -189,7 +186,6 @@
   function closeSettings() { ui.closeModal("settingsModal"); }
 
   function applySettingsToUI() {
-    // Sync every setting ID to the modal inputs
     const setInput = (id, val) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -210,7 +206,7 @@
     setInput("smTimeControl", settings.timeControl);
     setInput("smCustomTimeMinutes", settings.customTimeMinutes);
     setInput("smIncrementSeconds", settings.incrementSeconds);
-    setInput("smDelaySeconds", settings.delaySeconds());
+    setInput("smDelaySeconds", settings.delaySeconds);
     setInput("smAutoFlagOnTimeout", settings.autoFlagOnTimeout);
 
     setInput("smBoardTheme", settings.boardTheme);
@@ -326,60 +322,44 @@
     setInput("smDebugMode", settings.debugMode);
 
     // Range labels
-    setLabel("smValMoveTimeMin", settings.moveTimeMin, "s");
-    setLabel("smValMoveTimeMax", settings.moveTimeMax, "s");
-    setLabel("smValSquareSize", settings.squareSize, "px");
-    setLabel("smValBoardBorderWidth", settings.boardBorderWidth, "px");
-    setLabel("smValAnimationSpeed", settings.animationSpeed, "x");
-    setLabel("smValGlowIntensity", Math.round(settings.glowIntensity * 100), "%");
-    setLabel("smValGlassmorphismOpacity", Math.round(settings.glassmorphismOpacity * 100), "%");
-    setLabel("smValBackgroundBlur", settings.backgroundBlur, "px");
-    setLabel("smValAcMinTime", settings.acMinTime, "s");
-    setLabel("smValAcMaxAcc", settings.acMaxAcc, "%");
-    setLabel("smValMistakeFrequency", Math.round(settings.mistakeFrequency * 100), "%");
-    setLabel("smValBlunderFrequency", Math.round(settings.blunderFrequency * 100), "%");
-    setLabel("smValMasterVolume", Math.round(settings.masterVolume * 100), "%");
-    setLabel("smValMoveSoundVolume", Math.round(settings.moveSoundVolume * 100), "%");
-    setLabel("smValCaptureSoundVolume", Math.round(settings.captureSoundVolume * 100), "%");
-    setLabel("smValCastleSoundVolume", Math.round(settings.castleSoundVolume * 100), "%");
-    setLabel("smValPromotionSoundVolume", Math.round(settings.promotionSoundVolume * 100), "%");
-    setLabel("smValCheckSoundVolume", Math.round(settings.checkSoundVolume * 100), "%");
-    setLabel("smValGameOverSoundVolume", Math.round(settings.gameOverSoundVolume * 100), "%");
-    setLabel("smValMusicVolume", Math.round(settings.musicVolume * 100), "%");
-    setLabel("smValEngineAnalysisDepth", settings.engineAnalysisDepth);
+    const lbl = (id, val, unit) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val + unit;
+    };
+    lbl("smValMoveTimeMin", settings.moveTimeMin, "s");
+    lbl("smValMoveTimeMax", settings.moveTimeMax, "s");
+    lbl("smValSquareSize", settings.squareSize, "px");
+    lbl("smValBoardBorderWidth", settings.boardBorderWidth, "px");
+    lbl("smValAnimationSpeed", settings.animationSpeed, "x");
+    lbl("smValGlowIntensity", Math.round(settings.glowIntensity * 100), "%");
+    lbl("smValGlassmorphismOpacity", Math.round(settings.glassmorphismOpacity * 100), "%");
+    lbl("smValBackgroundBlur", settings.backgroundBlur, "px");
+    lbl("smValAcMinTime", settings.acMinTime, "s");
+    lbl("smValAcMaxAcc", settings.acMaxAcc, "%");
+    lbl("smValMistakeFrequency", Math.round(settings.mistakeFrequency * 100), "%");
+    lbl("smValBlunderFrequency", Math.round(settings.blunderFrequency * 100), "%");
+    lbl("smValMasterVolume", Math.round(settings.masterVolume * 100), "%");
+    lbl("smValMoveSoundVolume", Math.round(settings.moveSoundVolume * 100), "%");
+    lbl("smValCaptureSoundVolume", Math.round(settings.captureSoundVolume * 100), "%");
+    lbl("smValCastleSoundVolume", Math.round(settings.castleSoundVolume * 100), "%");
+    lbl("smValPromotionSoundVolume", Math.round(settings.promotionSoundVolume * 100), "%");
+    lbl("smValCheckSoundVolume", Math.round(settings.checkSoundVolume * 100), "%");
+    lbl("smValGameOverSoundVolume", Math.round(settings.gameOverSoundVolume * 100), "%");
+    lbl("smValMusicVolume", Math.round(settings.musicVolume * 100), "%");
+    lbl("smValEngineAnalysisDepth", settings.engineAnalysisDepth);
 
-    // Range input listeners for labels
-    wireRangeLabel("smMoveTimeMin", "smValMoveTimeMin", "s");
-    wireRangeLabel("smMoveTimeMax", "smValMoveTimeMax", "s");
-    wireRangeLabel("smSquareSize", "smValSquareSize", "px");
-    wireRangeLabel("smBoardBorderWidth", "smValBoardBorderWidth", "px");
-    wireRangeLabel("smAnimationSpeed", "smValAnimationSpeed", "x");
-    wireRangeLabel("smGlowIntensity", "smValGlowIntensity", "%");
-    wireRangeLabel("smGlassmorphismOpacity", "smValGlassmorphismOpacity", "%");
-    wireRangeLabel("smBackgroundBlur", "smValBackgroundBlur", "px");
-    wireRangeLabel("smAcMinTime", "smValAcMinTime", "s");
-    wireRangeLabel("smAcMaxAcc", "smValAcMaxAcc", "%");
-    wireRangeLabel("smMistakeFrequency", "smValMistakeFrequency", "%");
-    wireRangeLabel("smBlunderFrequency", "smValBlunderFrequency", "%");
-    wireRangeLabel("smMasterVolume", "smValMasterVolume", "%");
-    wireRangeLabel("smMoveSoundVolume", "smValMoveSoundVolume", "%");
-    wireRangeLabel("smCaptureSoundVolume", "smValCaptureSoundVolume", "%");
-    wireRangeLabel("smCastleSoundVolume", "smValCastleSoundVolume", "%");
-    wireRangeLabel("smPromotionSoundVolume", "smValPromotionSoundVolume", "%");
-    wireRangeLabel("smCheckSoundVolume", "smValCheckSoundVolume", "%");
-    wireRangeLabel("smGameOverSoundVolume", "smValGameOverSoundVolume", "%");
-    wireRangeLabel("smMusicVolume", "smValMusicVolume", "%");
-    wireRangeLabel("smEngineAnalysisDepth", "smValEngineAnalysisDepth");
-  }
-
-  function wireRangeLabel(inputId, labelId, unit) {
-    const el = document.getElementById(inputId);
-    const lab = document.getElementById(labelId);
-    if (!el || !lab) return;
-    el.addEventListener("input", () => {
-      const v = el.value;
-      lab.textContent = v + (unit || "");
-      if (unit === "%") lab.textContent = Math.round(parseFloat(v) * 100) + "%";
+    document.querySelectorAll('input[type="range"]').forEach(el => {
+      const labId = el.id.replace("sm", "smVal");
+      const lab = document.getElementById(labId);
+      if (!lab) return;
+      el.addEventListener("input", () => {
+        const v = el.value;
+        let disp = v;
+        if (labId.includes("Volume") || labId.includes("Frequency") || labId.includes("Intensity") || labId.includes("Opacity") || labId.includes("Acc")) {
+          disp = Math.round(parseFloat(v) * 100) + "%";
+        }
+        lab.textContent = disp;
+      });
     });
   }
 
@@ -398,7 +378,6 @@
       incrementSeconds: parseInt(g("smIncrementSeconds")) || 0,
       delaySeconds: parseInt(g("smDelaySeconds")) || 0,
       autoFlagOnTimeout: gc("smAutoFlagOnTimeout"),
-
       boardTheme: g("smBoardTheme"),
       pieceSet: g("smPieceSet"),
       squareSize: parseInt(g("smSquareSize")) || 60,
@@ -421,7 +400,6 @@
       clickRipple: gc("smClickRipple"),
       smoothPieceMovement: gc("smSmoothPieceMovement"),
       moveTrail: gc("smMoveTrail"),
-
       autoMoveEnabled: gc("smAutoMoveEnabled"),
       humanizeEnabled: gc("smHumanizeEnabled"),
       botStrength: g("smBotStrength"),
@@ -431,7 +409,6 @@
       mistakeFrequency: parseFloat(g("smMistakeFrequency")) || 0.25,
       blunderFrequency: parseFloat(g("smBlunderFrequency")) || 0.05,
       timePressureSimulation: gc("smTimePressureSimulation"),
-
       antiCheatEnabled: gc("smAntiCheatEnabled"),
       stealthMode: gc("smStealthMode"),
       acMinTime: parseFloat(g("smAcMinTime")) || 0.5,
@@ -446,7 +423,6 @@
       moveHesitation: gc("smMoveHesitation"),
       deepThinkPauses: gc("smDeepThinkPauses"),
       undetectableMode: gc("smUndetectableMode"),
-
       soundEnabled: gc("smSoundEnabled"),
       masterVolume: parseFloat(g("smMasterVolume")) || 0.8,
       moveSoundVolume: parseFloat(g("smMoveSoundVolume")) || 0.6,
@@ -460,7 +436,6 @@
       backgroundMusic: gc("smBackgroundMusic"),
       musicVolume: parseFloat(g("smMusicVolume")) || 0.3,
       musicTrack: g("smMusicTrack"),
-
       startEloWhite: parseInt(g("smStartEloWhite")) || 1500,
       startEloBlack: parseInt(g("smStartEloBlack")) || 1500,
       kFactor: parseInt(g("smKFactor")) || 32,
@@ -473,7 +448,6 @@
       drawStreakTracking: gc("smDrawStreakTracking"),
       performanceRating: gc("smPerformanceRating"),
       accuracyTracking: gc("smAccuracyTracking"),
-
       timePreset: g("smTimePreset"),
       lowTimeWarningSeconds: parseInt(g("smLowTimeWarningSeconds")) || 30,
       lowTimePulse: gc("smLowTimePulse"),
@@ -482,7 +456,6 @@
       clockShadow: gc("smClockShadow"),
       showOpponentClock: gc("smShowOpponentClock"),
       timePenaltyPerMove: parseInt(g("smTimePenaltyPerMove")) || 0,
-
       toastNotifications: gc("smToastNotifications"),
       gameOverAlert: gc("smGameOverAlert"),
       moveMadeAlert: gc("smMoveMadeAlert"),
@@ -492,7 +465,6 @@
       desktopNotifications: gc("smDesktopNotifications"),
       notificationDuration: parseInt(g("smNotificationDuration")) || 3000,
       notificationPosition: g("smNotificationPosition"),
-
       engineAnalysisDepth: parseInt(g("smEngineAnalysisDepth")) || 3,
       showEvaluationBar: gc("smShowEvaluationBar"),
       showBestMoveLine: gc("smShowBestMoveLine"),

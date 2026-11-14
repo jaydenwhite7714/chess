@@ -1,23 +1,22 @@
 /* ============================================================
-   Chess Test Net — Settings Manager (MASSIVE)
-   120+ settings organized into categories. Everything is
-   persisted to localStorage so your setup survives downloads
-   and re-uploads.
+   Chess Test Net — Settings Manager (MASSIVE: 120+ settings)
+   Organized into categories. Persisted to localStorage so your
+   setup survives downloads and re-uploads.
    ============================================================ */
 
 const DEFAULTS = {
   // ---------------- GAMEPLAY ----------------
-  gameMode: "pvb",                    // pvb | pvp | puzzle | engine
+  gameMode: "pvb",
   autoMoveEnabled: true,
   humanizeEnabled: true,
   moveTimeMin: 1.5,
   moveTimeMax: 5,
-  botStrength: "medium",              // random | weak | medium | strong | master | grandmaster
-  aiPersonality: "balanced",          // balanced | aggressive | positional | tactical | chaotic
-  mistakeFrequency: 0.25,             // 0-1
-  blunderFrequency: 0.05,             // 0-1
+  botStrength: "medium",
+  aiPersonality: "balanced",
+  mistakeFrequency: 0.25,
+  blunderFrequency: 0.05,
   timePressureSimulation: true,
-  timeControl: "blitz",               // none | bullet | blitz | rapid | classical | custom
+  timeControl: "blitz",
   customTimeMinutes: 10,
   customIncrementSeconds: 0,
   increment: 0,
@@ -25,11 +24,12 @@ const DEFAULTS = {
   drawOffersAllowed: true,
   promotionPrompt: true,
   autoQueenPromotion: false,
+  moveSound: true,
 
   // ---------------- BOARD & VISUALS ----------------
-  boardTheme: "green",                // green | blue | wood | dark | marble | neon | cat | space | ocean | fire | ice | candy | retro | minimal
-  pieceSet: "classic",                // classic | modern | fantasy | minimal | pixel | marble | glass | neon
-  squareSize: 60,                     // px (responsive override)
+  boardTheme: "green",
+  pieceSet: "classic",
+  squareSize: 60,
   boardBorderWidth: 14,
   boardShadowIntensity: 0.6,
   coordinatesShown: true,
@@ -37,13 +37,12 @@ const DEFAULTS = {
   selectedSquareHighlight: true,
   legalMoveHighlights: true,
   checkHighlight: true,
-  animationSpeed: 1.0,                // 0.25 - 3
+  animationSpeed: 1.0,
   pieceDropShadow: true,
   boardReflection: false,
   glowIntensity: 0.5,
   glassmorphismOpacity: 0.72,
   backgroundBlur: 20,
-  backgroundGradientSpeed: 12,        // seconds
   floatingParticles: true,
   confettiOnGameEnd: true,
   cursorTrail: false,
@@ -62,10 +61,10 @@ const DEFAULTS = {
   checkSoundVolume: 0.9,
   gameOverSoundVolume: 1.0,
   uiclickSound: true,
-  soundPack: "classic",               // classic | electronic | orchestral | retro | minimal
+  soundPack: "classic",
   backgroundMusic: false,
   musicVolume: 0.3,
-  musicTrack: "ambient",              // ambient | lofi | classical | electronic | jazz
+  musicTrack: "ambient",
 
   // ---------------- ANTI-CHEAT & STEALTH ----------------
   antiCheatEnabled: true,
@@ -102,13 +101,13 @@ const DEFAULTS = {
   timePreset: "blitz",
   baseTimeMinutes: 10,
   incrementSeconds: 0,
-  delaySeconds: 0,                    // Fischer/Bronstein delay
+  delaySeconds: 0,
   timePenaltyPerMove: 0,
   autoFlagOnTimeout: true,
   lowTimeWarningSeconds: 30,
   lowTimePulse: true,
-  clockDisplayFormat: "mm:ss",        // mm:ss | h:mm:ss | seconds
-  clockColor: "accent",               // accent | white | red | blue | green
+  clockDisplayFormat: "mm:ss",
+  clockColor: "accent",
   clockShadow: true,
   showOpponentClock: true,
 
@@ -121,25 +120,25 @@ const DEFAULTS = {
   premoveAlert: false,
   soundNotifications: true,
   desktopNotifications: false,
-  notificationDuration: 3000,         // ms
-  notificationPosition: "bottom",     // bottom | top | top-right | bottom-right
+  notificationDuration: 3000,
+  notificationPosition: "bottom",
 
   // ---------------- ADVANCED / EXPERIMENTAL ----------------
-  engineAnalysisDepth: 3,             // 1-10
+  engineAnalysisDepth: 3,
   showEvaluationBar: false,
   showBestMoveLine: false,
   showPrincipalVariation: false,
   autoFlipBoard: false,
-  coordinatesStyle: "standard",       // standard | algebraic | none
-  moveListFont: "mono",               // mono | sans | serif
-  moveListSize: 0.82,                 // rem multiplier
-  moveListDensity: "normal",          // compact | normal | spacious
+  coordinatesStyle: "standard",
+  moveListFont: "mono",
+  moveListSize: 0.82,
+  moveListDensity: "normal",
   compactMode: false,
   darkMode: true,
   highContrast: false,
   reducedMotion: false,
   keyboardShortcuts: true,
-  exportFormat: "json",               // json | pgn | fen
+  exportFormat: "json",
   autoSaveGames: true,
   localOnlyMode: true,
   debugMode: false
@@ -177,7 +176,6 @@ class Settings {
     this.save();
   }
 
-  // Time control seconds
   timeSeconds() {
     const tc = this.values.timeControl;
     if (tc === "bullet") return 120;
@@ -188,22 +186,12 @@ class Settings {
     return 300;
   }
 
-  incrementSeconds() {
-    return this.values.incrementSeconds || 0;
-  }
+  incrementSeconds() { return this.values.incrementSeconds || 0; }
+  delaySeconds() { return this.values.delaySeconds || 0; }
 
-  delaySeconds() {
-    return this.values.delaySeconds || 0;
-  }
+  reset() { this.values = { ...DEFAULTS }; this.save(); }
 
-  reset() {
-    this.values = { ...DEFAULTS };
-    this.save();
-  }
-
-  export() {
-    return JSON.stringify(this.values, null, 2);
-  }
+  export() { return JSON.stringify(this.values, null, 2); }
 
   import(json) {
     try {
@@ -211,12 +199,9 @@ class Settings {
       this.values = { ...DEFAULTS, ...parsed };
       this.save();
       return true;
-    } catch (e) {
-      return false;
-    }
+    } catch (e) { return false; }
   }
 
-  // Get all settings in a category
   getCategory(prefix) {
     const out = {};
     for (const [k, v] of Object.entries(this.values)) {

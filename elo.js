@@ -7,10 +7,7 @@ class EloSystem {
   constructor(options = {}) {
     this.kFactor = options.kFactor || 32;
     this.startingElo = options.startingElo || 1500;
-    this.ratings = {
-      white: this.startingElo,
-      black: this.startingElo
-    };
+    this.ratings = { white: this.startingElo, black: this.startingElo };
     this.history = [];
     this.games = 0;
     this.wins = 0;
@@ -36,7 +33,6 @@ class EloSystem {
     return 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
   }
 
-  // result: "white" | "black" | "draw"
   record(result) {
     const before = { white: this.ratings.white, black: this.ratings.black };
 
