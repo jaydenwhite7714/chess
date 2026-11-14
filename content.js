@@ -1,457 +1,592 @@
 /* ============================================================
-   Chess Test Net — Content Script for chess.com
-   Injects a floating control panel onto chess.com so you can
-   use the human-like auto-move bot and engine suggestions
-   directly on chess.com.
+   Chess Test Net — Content Script for chess.com (FULL)
+   Works directly on chess.com: reads the live board, detects
+   colors & time control, reads your Elo, and plays human-like
+   stealth moves via click simulation. Never engine-perfect.
    ============================================================ */
 
 (function() {
   'use strict';
 
-  // Prevent double injection
   if (window.chessTestNetInjected) return;
   window.chessTestNetInjected = true;
 
-  // -----------------------------------------------------------------
-  // Config / state
-  // -----------------------------------------------------------------
+  // ============================================================
+  // 1. INJECT ENGINE SCRIPTS INTO PAGE (shared global scope)
+  // ============================================================
+  function injectScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = chrome.runtime.getURL(src);
+      s.onload = resolve;
+      s.onerror = reject;
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+
+  // ============================================================
+  // 2. STATE
+  // ============================================================
   const STATE = {
-    enabled: false,
-    autoMove: false,
-    strength: 'medium',
-    humanize: true,
-    minTime: 1500,
-    maxTime: 5000,
-    timer: null,
-    lastMoveTime: 0,
     engine: null,
     ai: null,
-    board: null, // chess.js instance tracking the position
-    color: 'w',  // our color on chess.com
-    moveTimer: null
+    antiCheat: null,
+    eloSys: null,
+    color: null,            // 'w' or 'b' — our color (user sets via panel)
+    timeControl: 'blitz',   // detected
+    humanElo: 1200,         // detected user elo (fallback)
+    boardEl: null,
+    ourTurn: false,
+    lastFen: null,
+    enabled: false,
+    autoMove: false,
+    timer: null,
+    moveCount: 0,
+    gameActive: false,
+    lastSan: null,
   };
 
-  // -----------------------------------------------------------------
-  // Create floating panel UI
-  // -----------------------------------------------------------------
+  // ============================================================
+  // 3. UI PANEL (glassmorphism, matches extension style)
+  // ============================================================
+  let panel = null;
+
   function createPanel() {
-    const panel = document.createElement('div');
-    panel.id = 'chess-testnet-panel';
+    if (document.getElementById('ctn-panel')) return;
+    panel = document.createElement('div');
+    panel.id = 'ctn-panel';
     panel.style.cssText = `
       position: fixed;
-      top: 120px;
-      right: 16px;
+      top: 100px;
+      right: 20px;
       z-index: 2147483647;
-      width: 260px;
-      background: rgba(15, 23, 42, 0.92);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255,255,255,0.1);
+      width: 300px;
+      background: rgba(15, 18, 26, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
       border-radius: 16px;
-      padding: 16px;
-      color: #f8fafc;
-      font-family: Inter, system-ui, -apple-system, sans-serif;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+      padding: 18px;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
       font-size: 13px;
       user-select: none;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
+      animation: ctnSlideIn 0.4s cubic-bezier(0.16,1,0.3,1);
     `;
 
     panel.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;font-size:16px;">♟</div>
-        <div style="font-weight:800;font-size:14px;letter-spacing:-0.5px;">Chess Test Net</div>
+      <style>
+        @keyframes ctnSlideIn { from { opacity:0; transform: translateY(-20px);} to { opacity:1; transform: translateY(0);} }
+        .ctn-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .ctn-label { font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+        .ctn-toggle { position:relative; width:44px; height:24px; background:rgba(255,255,255,0.08); border-radius:12px; border:none; outline:none; cursor:pointer; transition:all 0.2s; }
+        .ctn-toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 0.2s; }
+        .ctn-toggle.active { background:#6366f1; box-shadow:0 0 16px rgba(99,102,241,0.4); }
+        .ctn-toggle.active::after { transform:translateX(20px); }
+        .ctn-btn { width:100%; padding:10px; border-radius:10px; border:none; color:#fff; font-weight:700; font-size:13px; cursor:pointer; transition:all 0.2s; }
+        .ctn-btn.primary { background:#6366f1; box-shadow:0 0 20px rgba(99,102,241,0.35); }
+        .ctn-btn.primary.on { background:#ef4444; box-shadow:0 0 20px rgba(239,68,68,0.35); }
+        .ctn-btn.secondary { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); }
+        .ctn-strength { display:flex; gap:4px; }
+        .ctn-strength-btn { flex:1; padding:6px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:11px; cursor:pointer; }
+        .ctn-strength-btn.active { background:#6366f1; border-color:#6366f1; color:#fff; }
+        .ctn-range { width:100%; accent-color:#6366f1; cursor:pointer; }
+        .ctn-status { margin-top:6px; padding:8px; border-radius:8px; background:rgba(255,255,255,0.04); font-size:11px; color:#94a3b8; border:1px solid rgba(255,255,255,0.06); }
+        .ctn-status.healthy { color:#22c55e; border-color:rgba(34,197,94,0.2); }
+        .ctn-status.warn { color:#f59e0b; border-color:rgba(245,158,11,0.2); }
+        .ctn-status.bad { color:#ef4444; border-color:rgba(239,68,68,0.2); }
+        .ctn-close { margin-top:4px; width:100%; padding:8px; border-radius:8px; border:none; background:rgba(255,255,255,0.05); color:#94a3b8; font-size:11px; cursor:pointer; }
+        .ctn-hint { font-size:10px; color:#64748b; margin-top:4px; line-height:1.4; }
+      </style>
+
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;font-size:16px;">♟</div>
+        <div style="font-weight:800;font-size:15px;letter-spacing:-0.5px;">Chess Test Net</div>
       </div>
 
-      <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
-        Auto-move on chess.com
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:2px;">Auto-move on chess.com</div>
+      <div style="border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;"></div>
+
+      <div class="ctn-row">
+        <span class="ctn-label">Auto-move</span>
+        <button class="ctn-toggle" id="ctn-toggle"></button>
+      </div>
+      <button class="ctn-btn primary" id="ctn-btn-auto">▶ Enable Auto-Move</button>
+
+      <div class="ctn-strength">
+        <button class="ctn-strength-btn" id="ctn-weak">Weak</button>
+        <button class="ctn-strength-btn active" id="ctn-med">Medium</button>
+        <button class="ctn-strength-btn" id="ctn-strong">Strong</button>
       </div>
 
-      <button id="ctn-toggle-auto" style="width:100%;padding:10px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 0 20px rgba(99,102,241,0.4);">
-        ▶ Enable Auto-Move
-      </button>
-
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <button id="ctn-strength-weak" style="flex:1;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#f8fafc;font-size:11px;cursor:pointer;">Weak</button>
-        <button id="ctn-strength-med" style="flex:1;padding:7px;border-radius:8px;border:1px solid #6366f1;background:#6366f1;color:#fff;font-size:11px;cursor:pointer;">Medium</button>
-        <button id="ctn-strength-strong" style="flex:1;padding:7px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#f8fafc;font-size:11px;cursor:pointer;">Strong</button>
+      <div class="ctn-row">
+        <span class="ctn-label">Your color</span>
+        <button class="ctn-btn secondary" id="ctn-color" style="flex:1;padding:6px;font-size:11px;">White</button>
       </div>
 
-      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:#cbd5e1;">
-        <input type="checkbox" id="ctn-humanize" checked style="accent-color:#6366f1;">
-        Humanize (mistakes + timing)
+      <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#cbd5e1;">
+        <input type="checkbox" id="ctn-humanize" checked style="accent-color:#6366f1; width:16px;height:16px; cursor:pointer;">
+        <span style="flex:1;">Humanize (mistakes + timing)</span>
       </label>
 
-      <div style="margin-top:8px;">
-        <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;">Min move time (s)</label>
-        <input id="ctn-min-time" type="range" min="1" max="10" step="0.5" value="1.5" style="width:100%;accent-color:#6366f1;">
-      </div>
-      <div style="margin-top:6px;">
-        <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;">Max move time (s)</label>
-        <input id="ctn-max-time" type="range" min="2" max="30" step="0.5" value="5" style="width:100%;accent-color:#6366f1;">
-      </div>
-
-      <div id="ctn-status" style="margin-top:10px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:#94a3b8;">
-        Status: Ready
+      <div style="display:flex;gap:8px;margin:8px 0;">
+        <div style="flex:1;">
+          <div class="ctn-label">Min time (s)</div>
+          <input class="ctn-range" id="ctn-min-time" type="range" min="1" max="8" step="0.5" value="2">
+        </div>
+        <div style="flex:1;">
+          <div class="ctn-label">Max time (s)</div>
+          <input class="ctn-range" id="ctn-max-time" type="range" min="2" max="20" step="0.5" value="8">
+        </div>
       </div>
 
-      <div id="ctn-best-move" style="margin-top:8px;padding:8px;border-radius:8px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);font-size:11px;color:#a5b4fc;font-family:'JetBrains Mono',monospace;">
-        Best move: —
-      </div>
+      <div class="ctn-status healthy" id="ctn-status">Status: Ready</div>
+      <div class="ctn-hint" id="ctn-hint">Detecting game...</div>
 
-      <button id="ctn-close" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.05);color:#94a3b8;font-size:11px;cursor:pointer;">Close</button>
+      <button class="ctn-close" id="ctn-close">Close panel</button>
     `;
 
     document.body.appendChild(panel);
-    return panel;
   }
 
-  // -----------------------------------------------------------------
-  // chess.com DOM detection (best effort across site redesigns)
-  // -----------------------------------------------------------------
-  function findBoardElement() {
-    // Try common chess.com board selectors
-    const selectors = [
-      '.board', '.cg-wrap', '.chessboard', '[class*="board"]',
-      '.board-B8Ka7', '.board-r652h', '.board-L6XbS'
-    ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) return el;
-    }
-    return null;
+  function setStatus(msg, kind = 'healthy') {
+    const el = document.getElementById('ctn-status');
+    if (el) { el.textContent = 'Status: ' + msg; el.className = 'ctn-status ' + kind; }
+  }
+  function setHint(msg) {
+    const el = document.getElementById('ctn-hint');
+    if (el) el.textContent = msg;
   }
 
-  function findSquareElement(sanFrom, sanTo) {
-    // chess.com square elements typically have data-square attributes
-    // like data-square="e2" or classes like square-e2
-    const fromEl = document.querySelector(`[data-square="${sanFrom}"]`) ||
-                   document.querySelector(`.square-${sanFrom}`);
-    const toEl = document.querySelector(`[data-square="${sanTo}"]`) ||
-                 document.querySelector(`.square-${sanTo}`);
-    return { from: fromEl, to: toEl };
+  // ============================================================
+  // 4. CHESS.COM DOM HELPERS
+  // ============================================================
+
+  // Map algebraic square -> our board index (rank 8 = 0)
+  function sqToIdx(san) {
+    if (!san || san.length < 2) return -1;
+    const f = san.charCodeAt(0) - 97;
+    const r = parseInt(san[1], 10);
+    if (f < 0 || f > 7 || r < 1 || r > 8 || isNaN(r)) return -1;
+    return (8 - r) * 8 + f;
   }
-
-  function getPieceAtSquare(squareName) {
-    const el = document.querySelector(`[data-square="${squareName}"]`) ||
-               document.querySelector(`.square-${squareName}`);
-    if (!el) return null;
-    // Look for piece element inside square
-    const piece = el.querySelector('[class*="piece"]') || el.querySelector('img');
-    if (!piece) return null;
-    const cls = piece.className || piece.getAttribute('src') || '';
-    // Determine color and type from class/src
-    const isWhite = cls.includes('w') && !cls.includes('wp'); // rough
-    const typeMap = { 'p': 'p', 'n': 'n', 'b': 'b', 'r': 'r', 'q': 'q', 'k': 'k' };
-    let type = 'p';
-    for (const [k, v] of Object.entries(typeMap)) {
-      if (cls.includes(k)) { type = v; break; }
-    }
-    return { color: isWhite ? 'w' : 'b', type, element: el };
-  }
-
-  // -----------------------------------------------------------------
-  // Sync chess.com board -> our chess engine
-  // -----------------------------------------------------------------
-  function syncBoardFromDOM() {
-    // This is best-effort; chess.com's DOM is complex and changes often.
-    // We try to read piece positions from square elements.
-    const boardEl = findBoardElement();
-    if (!boardEl) return null;
-
-    const newBoard = [
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.',
-      '.','.','.','.','.','.','.','.'
-    ];
-
-    const files = 'abcdefgh';
-    let foundAny = false;
-    for (let r = 0; r < 8; r++) {
-      for (let f = 0; f < 8; f++) {
-        const sqName = files[f] + (8 - r);
-        const piece = getPieceAtSquare(sqName);
-        if (piece) {
-          foundAny = true;
-          const idx = r * 8 + f;
-          newBoard[idx] = piece.color === 'w'
-            ? piece.type.toUpperCase()
-            : piece.type;
-        }
-      }
-    }
-
-    if (!foundAny) return null;
-    return newBoard;
-  }
-
-  // -----------------------------------------------------------------
-  // Try to make a move on chess.com's board
-  // -----------------------------------------------------------------
-  function attemptChessDotComMove(fromSan, toSan, promotion) {
-    const squares = findSquareElement(fromSan, toSan);
-    if (!squares.from || !squares.to) {
-      console.log('[CTN] Could not find square elements', fromSan, toSan);
-      return false;
-    }
-
-    // Click from square then to square (chess.com's interaction pattern)
-    try {
-      squares.from.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      squares.from.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      squares.from.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-
-      setTimeout(() => {
-        squares.to.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        squares.to.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        squares.to.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      }, 150);
-
-      return true;
-    } catch (e) {
-      console.error('[CTN] Move click failed', e);
-      return false;
-    }
-  }
-
-  // -----------------------------------------------------------------
-  // AI move loop
-  // -----------------------------------------------------------------
-  function startAutoMove() {
-    stopAutoMove();
-    if (!STATE.engine) return;
-
-    STATE.moveTimer = setInterval(async () => {
-      if (!STATE.autoMove) return;
-
-      // Only move if it's our turn
-      const ourTurn = STATE.engine.side === STATE.color;
-      if (!ourTurn) return;
-
-      const now = Date.now();
-      if (now - STATE.lastMoveTime < STATE.minTime) return;
-
-      const legal = STATE.engine.legalMoves();
-      if (!legal.length) return;
-
-      // Pick move using AI logic
-      const scored = legal.map(m => {
-        const from = sqName(m.from);
-        const to = sqName(m.to);
-        let score = 0;
-        if (m.capture !== '.') {
-          const victim = { p:100,n:320,b:330,r:500,q:900,k:0 }[m.capture.toLowerCase()] || 0;
-          const attacker = { p:100,n:320,b:330,r:500,q:900,k:0 }[m.fromPiece.toLowerCase()] || 0;
-          score += 2000 + victim - attacker;
-        }
-        if (m.promotion) score += 1800;
-        return { m, score };
-      });
-      scored.sort((a, b) => b.score - a.score);
-
-      // Humanize: sometimes pick non-best
-      let chosen;
-      if (STATE.humanize && Math.random() < 0.25 && scored.length > 2) {
-        const mid = Math.floor(scored.length / 2);
-        const tier = scored.slice(mid, Math.min(scored.length, mid + 3));
-        chosen = tier[Math.floor(Math.random() * tier.length)].m;
-      } else {
-        chosen = scored[0].m;
-      }
-
-      const from = sqName(chosen.from);
-      const to = sqName(chosen.to);
-
-      // Update status
-      const statusEl = document.getElementById('ctn-status');
-      if (statusEl) statusEl.textContent = `Playing: ${from}${to}`;
-      const bestEl = document.getElementById('ctn-best-move');
-      if (bestEl) bestEl.textContent = `Best move: ${from}${to}`;
-
-      // Attempt move on chess.com
-      attemptChessDotComMove(from, to, chosen.promotion);
-
-      // Apply to our engine
-      STATE.engine.move(chosen);
-
-      STATE.lastMoveTime = now;
-
-    }, 1000);
-  }
-
-  function stopAutoMove() {
-    if (STATE.moveTimer) {
-      clearInterval(STATE.moveTimer);
-      STATE.moveTimer = null;
-    }
-  }
-
-  function sqName(i) {
+  function idxToSan(i) {
     return String.fromCharCode(97 + (i % 8)) + (Math.floor(i / 8) + 1);
   }
 
-  // -----------------------------------------------------------------
-  // Initialize engine + panel
-  // -----------------------------------------------------------------
-  function init() {
-    // Load chess engine and AI
-    const engineScript = document.createElement('script');
-    engineScript.textContent = `
-      (function(){
-        const WHITE="w",BLACK="b",EMPTY=".",PIECE_VALUES={p:100,n:320,b:330,r:500,q:900,k:0};
-        function sq(f,r){return r*8+f;}function fileOf(s){return s%8;}function rankOf(s){return (s/8)|0;}
-        function boardRankOf(s){return 8-rankOf(s);}function sqName(s){return String.fromCharCode(97+fileOf(s))+boardRankOf(s);}
-        function sqFromName(name){if(!name||typeof name!=="string"||name.length<2)return-1;const f=name.charCodeAt(0)-97;const boardRank=parseInt(name[1],10);const r=8-boardRank;if(f<0||f>7||r<0||r>7||isNaN(boardRank))return-1;return sq(f,r);}
-        function colorOf(p){if(!p||p===EMPTY)return null;return p===p.toUpperCase()?WHITE:BLACK;}
-        function isOpponent(p,c){return p!==EMPTY&&colorOf(p)!==c;}
-        const START=["r","n","b","q","k","b","n","r","p","p","p","p","p","p","p","p",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".",".","P","P","P","P","P","P","P","P","R","N","B","Q","K","B","N","R"];
-        class Chess{
-          constructor(){this.reset();}
-          reset(){this.board=[...START];this.side=WHITE;this.castling={K:true,Q:true,k:true,q:true};this.enPassant=-1;this.halfmove=0;this.fullmove=1;this.history=[];this.moveNumber=1;this.gameOver=false;this.result=null;this.termination=null;this.inCheck=false;}
-          _clone(){const c=new Chess();c.board=[...this.board];c.side=this.side;c.castling={...this.castling};c.enPassant=this.enPassant;c.halfmove=this.halfmove;c.fullmove=this.fullmove;c.history=[...this.history];c.moveNumber=this.moveNumber;return c;}
-          _addMove(m,f,t,pr,cap,fl){m.push({from:f,to:t,promotion:pr||null,capture:cap||EMPTY,flags:fl||"n",lan:sqName(f)+sqName(t)+(pr||"")});}
-          _sliding(moves,f,dirs){const ff=fileOf(f),rr=rankOf(f);const p=this.board[f];const c=colorOf(p);for(const [df,dr] of dirs){let nf=ff+df,nr=rr+dr;while(nf>=0&&nf<=7&&nr>=0&&nr<=7){const t=sq(nf,nr);const tar=this.board[t];if(tar===EMPTY){this._addMove(moves,f,t);}else{if(isOpponent(tar,c))this._addMove(moves,f,t,null,tar,"c");break;}nf+=df;nr+=dr;}}
-          _knight(moves,f){const ff=fileOf(f),rr=rankOf(f);const p=this.board[f];const c=colorOf(p);const st=[[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];for(const [df,dr] of st){let nf=ff+df,nr=rr+dr;if(nf<0||nf>7||nr<0||nr>7)continue;const t=sq(nf,nr);const tar=this.board[t];if(tar===EMPTY)this._addMove(moves,f,t);else if(isOpponent(tar,c))this._addMove(moves,f,t,null,tar,"c");}}
-          _pawn(moves,f){const p=this.board[f];const c=colorOf(p);const dir=c===WHITE?-1:1;const sr=c===WHITE?6:1;const pr=c===WHITE?0:7;const ff=fileOf(f),rr=rankOf(f);const one=sq(ff,rr+dir);if(rr+dir>=0&&rr+dir<=7&&this.board[one]===EMPTY){if(rankOf(one)===pr){for(const prm of ["q","r","b","n"])this._addMove(moves,f,one,prm,EMPTY,"p");}else this._addMove(moves,f,one);const two=sq(ff,rr+2*dir);if(rr===sr&&this.board[two]===EMPTY)this._addMove(moves,f,two);}for(const df of [-1,1]){let nf=ff+df;if(nf<0||nf>7)continue;let t=sq(nf,rr+dir);if(rr+dir<0||rr+dir>7)continue;const tar=this.board[t];if(tar!==EMPTY&&isOpponent(tar,c)){if(rankOf(t)===pr){for(const prm of ["q","r","b","n"])this._addMove(moves,f,t,prm,tar,"c");}else this._addMove(moves,f,t,null,tar,"c");}if(t===this.enPassant)this._addMove(moves,f,t,null,EMPTY,"e");}}
-          _king(moves,f){const ff=fileOf(f),rr=rankOf(f);const p=this.board[f];const c=colorOf(p);const st=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];for(const [df,dr] of st){let nf=ff+df,nr=rr+dr;if(nf<0||nf>7||nr<0||nr>7)continue;const t=sq(nf,nr);const tar=this.board[t];if(tar===EMPTY)this._addMove(moves,f,t);else if(isOpponent(tar,c))this._addMove(moves,f,t,null,tar,"c");}}
-          _gen(moves){const c=this.side;for(let f=0;f<64;f++){const p=this.board[f];if(p===EMPTY||colorOf(p)!==c)continue;const t=p.toLowerCase();switch(t){case"p":this._pawn(moves,f);break;case"n":this._knight(moves,f);break;case"b":this._sliding(moves,f,[[1,1],[1,-1],[-1,1],[-1,-1]]);break;case"r":this._sliding(moves,f,[[1,0],[-1,0],[0,1],[0,-1]]);break;case"q":this._sliding(moves,f,[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]);break;case"k":this._king(moves,f);break;}}}
-          _attacked(si,bc){for(let i=0;i<64;i++){const p=this.board[i];if(p===EMPTY||colorOf(p)!==bc)continue;const t=p.toLowerCase();const f=fileOf(i),r=rankOf(i);const tf=fileOf(si),tr=rankOf(si);if(t==="p"){const dir=bc===WHITE?-1:1;if((tf===f+1||tf===f-1)&&tr===r+dir)return true;continue;}if(t==="n"){const df=Math.abs(tf-f),dr=Math.abs(tr-r);if((df===1&&dr===2)||(df===2&&dr===1))return true;continue;}if(t==="k"){if(Math.abs(tf-f)<=1&&Math.abs(tr-r)<=1)return true;continue;}if((t==="b"||t==="q")&&Math.abs(tf-f)===Math.abs(tr-r)&&this._path(i,si))return true;if((t==="r"||t==="q")&&(f===tf||r===tr)&&this._path(i,si))return true;}}return false;}
-          _path(a,b){const fa=fileOf(a),ra=rankOf(a);const fb=fileOf(b),rb=rankOf(b);const df=fb===fa?0:(fb>fa?1:-1);const dr=rb===ra?0:(rb>ra?1:-1);let f=fa+df,r=ra+dr;while(f!==fb||r!==rb){if(this.board[sq(f,r)]!==EMPTY)return false;f+=df;r+=dr;}return true;}
-          _ksquare(c){return this.board.indexOf(c===WHITE?"K":"k");}
-          _check(c){const ks=this._ksquare(c);return ks!==-1&&this._attacked(ks,c===WHITE?BLACK:WHITE);}
-          moves(o){const v=!!o.verbose;const raw=[];this._gen(raw);const l=[];for(const m of raw){if(this._try(m)){if(v)l.push({...m,san:this._san(m),lan:m.lan});else l.push(m.lan);}}return l;}
-          _try(m){const p=this.board[m.f];const c=colorOf(p);const cap=this.board[m.t];const ep=this.enPassant;const cl={...this.castling};const hm=this.halfmove;const sd=this.side;const fm=this.fullmove;this.board[m.t]=p;this.board[m.f]=EMPTY;if(m.fl==="e")this.board[c===WHITE?m.t+8:m.t-8]=EMPTY;if(m.fl==="K"){this.board[sq(5,7)]=this.board[sq(7,7)];this.board[sq(7,7)]=EMPTY;}if(m.fl==="Q"){this.board[sq(3,7)]=this.board[sq(0,7)];this.board[sq(0,7)]=EMPTY;}if(m.fl==="k"){this.board[sq(5,0)]=this.board[sq(7,0)];this.board[sq(7,0)]=EMPTY;}if(m.fl==="q"){this.board[sq(3,0)]=this.board[sq(0,0)];this.board[sq(0,0)]=EMPTY;}if(m.promotion)this.board[m.t]=c===WHITE?m.promotion.toUpperCase():m.promotion;if(p==="K"){this.castling.K=false;this.castling.Q=false;}if(p==="k"){this.castling.k=false;this.castling.q=false;}if(m.f===sq(0,7)||m.t===sq(0,7))this.castling.Q=false;if(m.f===sq(7,7)||m.t===sq(7,7))this.castling.K=false;if(m.f===sq(0,0)||m.t===sq(0,0))this.castling.q=false;if(m.f===sq(7,0)||m.t===sq(7,0))this.castling.k=false;this.enPassant=-1;if(p.toLowerCase()==="p"&&Math.abs(rankOf(m.t)-rankOf(m.f))===2){this.enPassant=c===WHITE?m.t+8:m.t-8;}this.halfmove=p.toLowerCase()==="p"||cap!==EMPTY?0:hm+1;this.side=c===WHITE?BLACK:WHITE;if(this.side===WHITE)this.fullmove++;const ok=!this._check(c);this.board[m.f]=p;this.board[m.t]=cap;this.enPassant=ep;this.castling=cl;this.halfmove=hm;this.side=sd;this.fullmove=fm;return ok;}
-          _apply(m){const p=this.board[m.f];const c=colorOf(p);const cap=this.board[m.t];this.history.push({f:m.f,t:m.t,p,cap,promotion:m.promotion,flags:m.fl,castling:{...this.castling},enPassant:this.enPassant,halfmove:this.halfmove,fullmove:this.fullmove,side:this.side});this.board[m.t]=m.promotion?(c===WHITE?m.promotion.toUpperCase():m.promotion):p;this.board[m.f]=EMPTY;if(m.fl==="e")this.board[c===WHITE?m.t+8:m.t-8]=EMPTY;if(m.fl==="K"){this.board[sq(5,7)]=this.board[sq(7,7)];this.board[sq(7,7)]=EMPTY;}if(m.fl==="Q"){this.board[sq(3,7)]=this.board[sq(0,7)];this.board[sq(0,7)]=EMPTY;}if(m.fl==="k"){this.board[sq(5,0)]=this.board[sq(7,0)];this.board[sq(7,0)]=EMPTY;}if(m.fl==="q"){this.board[sq(3,0)]=this.board[sq(0,0)];this.board[sq(0,0)]=EMPTY;}if(p==="K"){this.castling.K=false;this.castling.Q=false;}if(p==="k"){this.castling.k=false;this.castling.q=false;}if(m.f===sq(0,7)||m.t===sq(0,7))this.castling.Q=false;if(m.f===sq(7,7)||m.t===sq(7,7))this.castling.K=false;if(m.f===sq(0,0)||m.t===sq(0,0))this.castling.q=false;if(m.f===sq(7,0)||m.t===sq(7,0))this.castling.k=false;this.enPassant=-1;if(p.toLowerCase()==="p"&&Math.abs(rankOf(m.t)-rankOf(m.f))===2){this.enPassant=c===WHITE?m.t+8:m.t-8;}this.halfmove=p.toLowerCase()==="p"||cap!==EMPTY?0:this.halfmove+1;this.side=c===WHITE?BLACK:WHITE;if(this.side===WHITE)this.fullmove++;this.moveNumber=this.fullmove;}
-          move(mv){if(!mv)return null;let m;if(typeof mv==="string"){m=this._parse(mv);if(!m)return null;}else m=mv;const l=this.moves({verbose:true});const fnd=l.find(lm=>lm.f===m.f&&lm.t===m.t&&(!m.promotion||lm.promotion===m.promotion));if(!fnd)return null;this._apply(fnd);this.inCheck=this._check(this.side);return fnd;}
-          _parse(s){if(!s||s.length<4)return null;const f=sqFromName(s.slice(0,2));const t=sqFromName(s.slice(2,4));if(f===-1||t===-1)return null;const pr=s.length===5?s[4].toLowerCase():null;if(pr&&!["q","r","b","n"].includes(pr))return null;return{from:f,to:t,promotion:pr};}
-          square(i){return this.board[i];}
-          legalMoves(){return this.moves({verbose:true});}
-          isGameOver(){return this.gameOver;}
-        }
-        window.Chess=Chess;window.sqName=sqName;window.sqFromName=sqFromName;
-      })();
-    `;
-    (document.head || document.documentElement).appendChild(engineScript);
-
-    // Small inline AI for content script
-    const aiScript = document.createElement('script');
-    aiScript.textContent = `
-      (function(){
-        const PV={p:100,n:320,b:330,r:500,q:900,k:0};
-        function score(c,m){let s=0;if(m.capture!=='.'){const v=PV[m.capture.toLowerCase()]||0;const a=PV[m.fromPiece.toLowerCase()]||0;s+=2000+v-a;}if(m.promotion)s+=1800;const cen=[sq(3,3),sq(4,3),sq(3,4),sq(4,4)];if(cen.includes(m.to))s+=15;return s;}
-        window.CTNAI = {
-          pick(chess, humanize=true){
-            const legal=chess.legalMoves();
-            if(!legal.length)return null;
-            legal.forEach(m=>{m.fromPiece=chess.square(m.from);});
-            const scored=legal.map(m=>({m,score:score(chess,m)}));
-            scored.sort((a,b)=>b.score-a.score);
-            if(humanize && Math.random()<0.25 && scored.length>2){
-              const mid=Math.floor(scored.length/2);
-              const tier=scored.slice(mid,Math.min(scored.length,mid+3));
-              return tier[Math.floor(Math.random()*tier.length)].m;
-            }
-            return scored[0].m;
-          }
-        };
-      })();
-    `;
-    (document.head || document.documentElement).appendChild(aiScript);
-
-    // Wait for scripts to load, then set up
-    setTimeout(() => {
-      STATE.engine = new window.Chess();
-      STATE.ai = window.CTNAI;
-
-      const panel = createPanel();
-      wirePanel(panel);
-
-      // Try to detect our color (assume white for now; user can toggle)
-      // Detect if we're white or black by looking at whose pieces are at bottom
-      setTimeout(() => {
-        const board = syncBoardFromDOM();
-        if (board) {
-          STATE.engine.board = board;
-        }
-        updateStatus('Engine ready');
-      }, 500);
-
-    }, 200);
+  // Read piece from a chess.com square element
+  function readPieceFromSquare(el) {
+    if (!el) return null;
+    // Try custom <chess-piece> element with piece attribute
+    const cp = el.querySelector('chess-piece') || el.querySelector('[piece]');
+    if (cp) {
+      const piece = cp.getAttribute('piece') || cp.getAttribute('data-piece') || '';
+      if (piece) {
+        const isWhite = cp.classList.contains('white') || piece === piece.toUpperCase() || !piece.startsWith('b');
+        return isWhite ? piece.toUpperCase() : piece.toLowerCase();
+      }
+    }
+    // Try img src
+    const img = el.querySelector('img');
+    if (img) {
+      const src = img.getAttribute('src') || '';
+      const lower = src.toLowerCase();
+      let type = 'p';
+      for (const t of ['q','r','b','n','k','p']) {
+        if (lower.includes(t)) { type = t; break; }
+      }
+      const isWhite = lower.includes('white') || lower.includes('w_') || !lower.includes('black');
+      return isWhite ? type.toUpperCase() : type;
+    }
+    // Try text content (unicode piece)
+    const text = el.textContent.trim();
+    const unicodeMap = { '♔':'K','♕':'Q','♖':'R','♗':'B','♘':'N','♙':'P','♚':'k','♛':'q','♜':'r','♝':'b','♞':'n','♟':'p' };
+    if (unicodeMap[text]) return unicodeMap[text];
+    // Try class names
+    const cls = el.className || '';
+    const cLower = cls.toLowerCase();
+    let type = 'p';
+    for (const t of ['queen','rook','bishop','knight','king','pawn']) {
+      if (cLower.includes(t)) { type = t[0]; break; }
+    }
+    const isWhite = cLower.includes('white') || cLower.includes('-w') || !cLower.includes('black');
+    return isWhite ? type.toUpperCase() : type;
   }
 
-  function wirePanel(panel) {
-    const btnAuto = panel.querySelector('#ctn-toggle-auto');
-    const btnWeak = panel.querySelector('#ctn-strength-weak');
-    const btnMed = panel.querySelector('#ctn-strength-med');
-    const btnStrong = panel.querySelector('#ctn-strength-strong');
+  // Read the full board from chess.com DOM
+  function readBoardFromDOM() {
+    const squares = document.querySelectorAll('[data-square]');
+    if (!squares || squares.length === 0) return null;
+
+    const board = [];
+    for (let i = 0; i < 64; i++) board[i] = '.';
+
+    let foundAny = false;
+    squares.forEach(el => {
+      const san = el.getAttribute('data-square');
+      const idx = sqToIdx(san);
+      if (idx === -1) return;
+      const piece = readPieceFromSquare(el);
+      if (piece && piece !== '.') {
+        board[idx] = piece;
+        foundAny = true;
+      }
+    });
+
+    if (!foundAny) return null;
+    return board;
+  }
+
+  // Find square element by algebraic name
+  function squareEl(san) {
+    return document.querySelector('[data-square="' + san + '"]');
+  }
+
+  // ============================================================
+  // 5. TIME CONTROL & ELO DETECTION
+  // ============================================================
+
+  function detectTimeControl() {
+    // Look for clock elements or time control text
+    const text = document.body.innerText || '';
+    // Patterns: "3+0", "5|0", "10+5", "Bullet", "Blitz", "Rapid"
+    const m = text.match(/\b(\d+)\s*[\+|\s]\s*(\d+)\b/);
+    if (m) {
+      const base = parseInt(m[1], 10);
+      const inc = parseInt(m[2], 10);
+      const total = base + inc;
+      if (total <= 3) return 'bullet';
+      if (total <= 10) return 'blitz';
+      if (total <= 30) return 'rapid';
+      return 'classical';
+    }
+    if (/bullet/i.test(text)) return 'bullet';
+    if (/blitz/i.test(text)) return 'blitz';
+    if (/rapid/i.test(text)) return 'rapid';
+    if (/classical/i.test(text)) return 'classical';
+    return 'blitz';
+  }
+
+  function detectHumanElo() {
+    // Best-effort: scan for rating near user's name in game header
+    const text = document.body.innerText || '';
+    // Look for 3-4 digit numbers that could be ratings
+    const ratings = [];
+    const matches = text.match(/\b(\d{3,4})\b/g);
+    if (matches) {
+      for (const m of matches) {
+        const n = parseInt(m, 10);
+        if (n >= 400 && n <= 3000) ratings.push(n);
+      }
+    }
+    if (ratings.length) {
+      // Return the most common / median-ish
+      ratings.sort((a,b) => a - b);
+      return ratings[Math.floor(ratings.length / 2)];
+    }
+    return 1200;
+  }
+
+  function mapEloToStrength(elo) {
+    if (elo < 900) return 'weak';
+    if (elo < 1300) return 'weak';
+    if (elo < 1700) return 'medium';
+    if (elo < 2100) return 'strong';
+    return 'master';
+  }
+
+  function mapEloToMistakeFreq(elo) {
+    if (elo < 1000) return 0.50;
+    if (elo < 1400) return 0.30;
+    if (elo < 1800) return 0.18;
+    if (elo < 2200) return 0.10;
+    return 0.05;
+  }
+
+  // ============================================================
+  // 6. MOVE EXECUTION (click simulation on chess.com)
+  // ============================================================
+
+  async function clickSquare(san) {
+    const el = squareEl(san);
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy };
+    el.dispatchEvent(new MouseEvent('mousedown', opts));
+    await new Promise(r => setTimeout(r, 60 + Math.random() * 60));
+    el.dispatchEvent(new MouseEvent('mouseup', opts));
+    await new Promise(r => setTimeout(r, 40 + Math.random() * 40));
+    el.dispatchEvent(new MouseEvent('click', opts));
+    return true;
+  }
+
+  async function makeMoveOnChessDotCom(move) {
+    const fromSan = idxToSan(move.from);
+    const toSan = idxToSan(move.to);
+    await clickSquare(fromSan);
+    await new Promise(r => setTimeout(r, 150 + Math.random() * 150));
+    await clickSquare(toSan);
+    STATE.lastSan = fromSan + toSan + (move.promotion || '');
+  }
+
+  // ============================================================
+  // 7. AI MOVE LOOP (human-like, stealthy)
+  // ============================================================
+
+  function computeDelay() {
+    const minMs = STATE.ai.minTime;
+    const maxMs = STATE.ai.maxTime;
+    let d = minMs + Math.random() * (maxMs - minMs);
+
+    // Time control adjustments
+    if (STATE.timeControl === 'bullet') d *= 0.35;
+    else if (STATE.timeControl === 'blitz') d *= 0.6;
+    else if (STATE.timeControl === 'rapid') d *= 0.85;
+
+    // Human jitter
+    if (Math.random() < 0.10) d *= 0.25;   // instant
+    if (Math.random() < 0.12) d *= 2.2;    // deep think
+    return Math.round(d);
+  }
+
+  function scheduleAIMove() {
+    if (!STATE.autoMove || !STATE.ourTurn || STATE.gameActive === false) return;
+    if (STATE.engine.isGameOver()) return;
+
+    const legal = STATE.engine.moves({ verbose: true });
+    if (!legal.length) return;
+
+    // Anti-cheat validation + human pick
+    const pick = STATE.ai.pick(STATE.engine, { moveCount: STATE.moveCount });
+    const ac = STATE.antiCheat.validate(pick.move, legal, true);
+
+    let moveToPlay = pick.move;
+    if (!ac.ok) {
+      // Fallback to a legal move that keeps stealth
+      const fallback = legal[Math.floor(Math.random() * legal.length)];
+      moveToPlay = { from: fallback.from, to: fallback.to, promotion: fallback.promotion };
+      setStatus('Stealth: adjusted move', 'warn');
+    }
+
+    STATE.antiCheat.startMove();
+    const delay = computeDelay();
+
+    setHint('Thinking… ' + Math.round(delay / 1000) + 's');
+
+    STATE.timer = setTimeout(async () => {
+      if (!STATE.autoMove || !STATE.ourTurn) return;
+      await makeMoveOnChessDotCom(moveToPlay);
+      // Apply to our engine
+      STATE.engine.move(moveToPlay);
+      STATE.moveCount++;
+      STATE.lastFen = STATE.engine.fen;
+      STATE.ourTurn = false;
+      setStatus('Move played · waiting for opponent', 'healthy');
+      setHint('Waiting for opponent…');
+    }, delay);
+  }
+
+  function stopTimer() {
+    if (STATE.timer) { clearTimeout(STATE.timer); STATE.timer = null; }
+  }
+
+  // ============================================================
+  // 8. MAIN LOOP — poll board, detect turns & moves
+  // ============================================================
+
+  function pollBoard() {
+    const board = readBoardFromDOM();
+    if (!board) {
+      setStatus('Waiting for board…', 'warn');
+      setHint('Open a game on chess.com');
+      return;
+    }
+
+    const fen = boardToFen(board);
+    const changed = fen !== STATE.lastFen;
+
+    if (changed && STATE.lastFen !== null) {
+      // Opponent (or we) made a move — detect and sync
+      handleBoardChange(board);
+    }
+
+    STATE.lastFen = fen;
+
+    // Detect game active
+    if (!STATE.gameActive) {
+      STATE.gameActive = true;
+      setStatus('Game detected', 'healthy');
+      detectSettings();
+      // Try to determine turn from engine side if we set color
+      if (STATE.color) {
+        STATE.ourTurn = (STATE.engine.side === STATE.color);
+        setStatus(STATE.ourTurn ? 'Your turn' : "Opponent's turn", 'healthy');
+      }
+    }
+  }
+
+  function boardToFen(board) {
+    let rows = '';
+    for (let r = 0; r < 8; r++) {
+      let empty = 0, row = '';
+      for (let f = 0; f < 8; f++) {
+        const p = board[r * 8 + f];
+        if (p === '.') empty++;
+        else { if (empty > 0) { row += empty; empty = 0; } row += p; }
+      }
+      if (empty > 0) row += empty;
+      rows += row + (r < 7 ? '/' : '');
+    }
+    return rows + ' ' + (STATE.engine ? STATE.engine.side : 'w') + ' - - 0 1';
+  }
+
+  function handleBoardChange(newBoard) {
+    // Sync our engine to the new board position
+    STATE.engine.board = [...newBoard];
+    // Recompute legal moves to validate
+    const legal = STATE.engine.moves({ verbose: true });
+
+    // Toggle turn
+    STATE.ourTurn = !STATE.ourTurn;
+    if (STATE.color) {
+      STATE.ourTurn = (STATE.engine.side === STATE.color);
+    }
+
+    if (STATE.ourTurn && STATE.autoMove && STATE.enabled && !STATE.engine.isGameOver()) {
+      setStatus('Your turn — computing…', 'healthy');
+      scheduleAIMove();
+    } else if (!STATE.ourTurn) {
+      setStatus("Opponent's turn", 'healthy');
+      setHint('Waiting for opponent…');
+    }
+  }
+
+  function detectSettings() {
+    STATE.timeControl = detectTimeControl();
+    STATE.humanElo = detectHumanElo();
+    const strength = mapEloToStrength(STATE.humanElo);
+    const mistakeFreq = mapEloToMistakeFreq(STATE.humanElo);
+
+    // Apply to AI
+    if (STATE.ai) {
+      STATE.ai.setOptions({
+        strength: strength,
+        humanize: document.getElementById('ctn-humanize').checked,
+        minTime: parseFloat(document.getElementById('ctn-min-time').value) * 1000,
+        maxTime: parseFloat(document.getElementById('ctn-max-time').value) * 1000,
+        personality: 'balanced',
+        mistakeFrequency: mistakeFreq,
+      });
+    }
+
+    setHint(`Elo ~${STATE.humanElo} · ${STATE.timeControl} · ${strength}`);
+  }
+
+  // ============================================================
+  // 9. PANEL WIRING
+  // ============================================================
+
+  function wirePanel() {
+    const btnAuto = panel.querySelector('#ctn-btn-auto');
+    const toggle = panel.querySelector('#ctn-toggle');
+    const btnWeak = panel.querySelector('#ctn-weak');
+    const btnMed = panel.querySelector('#ctn-med');
+    const btnStrong = panel.querySelector('#ctn-strong');
+    const btnColor = panel.querySelector('#ctn-color');
     const chkHuman = panel.querySelector('#ctn-humanize');
     const inpMin = panel.querySelector('#ctn-min-time');
     const inpMax = panel.querySelector('#ctn-max-time');
     const btnClose = panel.querySelector('#ctn-close');
 
+    function setStrength(str) {
+      [btnWeak, btnMed, btnStrong].forEach(b => { b.classList.remove('active'); });
+      if (str === 'weak') btnWeak.classList.add('active');
+      else if (str === 'strong') btnStrong.classList.add('active');
+      else btnMed.classList.add('active');
+      if (STATE.ai) STATE.ai.strength = str;
+    }
+
     btnAuto.addEventListener('click', () => {
       STATE.autoMove = !STATE.autoMove;
       btnAuto.textContent = STATE.autoMove ? '⏸ Disable Auto-Move' : '▶ Enable Auto-Move';
-      btnAuto.style.background = STATE.autoMove ? '#ef4444' : '#6366f1';
-      updateStatus(STATE.autoMove ? 'Auto-move ON' : 'Auto-move OFF');
-      if (STATE.autoMove) {
-        STATE.lastMoveTime = Date.now();
-        startAutoMove();
-      } else {
-        stopAutoMove();
-      }
+      btnAuto.classList.toggle('on', STATE.autoMove);
+      toggle.classList.toggle('active', STATE.autoMove);
+      setStatus(STATE.autoMove ? 'Auto-move ON' : 'Auto-move OFF', STATE.autoMove ? 'healthy' : 'warn');
+      if (STATE.autoMove) scheduleAIMove();
     });
 
-    btnWeak.addEventListener('click', () => { STATE.strength='weak'; setActive(btnWeak); });
-    btnMed.addEventListener('click', () => { STATE.strength='medium'; setActive(btnMed); });
-    btnStrong.addEventListener('click', () => { STATE.strength='strong'; setActive(btnStrong); });
+    btnWeak.addEventListener('click', () => setStrength('weak'));
+    btnMed.addEventListener('click', () => setStrength('medium'));
+    btnStrong.addEventListener('click', () => setStrength('strong'));
 
-    chkHuman.addEventListener('change', () => { STATE.humanize = chkHuman.checked; });
-    inpMin.addEventListener('input', () => { STATE.minTime = parseFloat(inpMin.value) * 1000; });
-    inpMax.addEventListener('input', () => { STATE.maxTime = parseFloat(inpMax.value) * 1000; });
+    btnColor.addEventListener('click', () => {
+      STATE.color = STATE.color === 'w' ? 'b' : 'w';
+      btnColor.textContent = STATE.color === 'w' ? 'White' : 'Black';
+      setStatus('Color set to ' + (STATE.color === 'w' ? 'White' : 'Black'), 'healthy');
+    });
 
-    btnClose.addEventListener('click', () => { panel.remove(); });
+    chkHuman.addEventListener('change', () => {
+      if (STATE.ai) STATE.ai.humanize = chkHuman.checked;
+    });
+    inpMin.addEventListener('input', () => { if (STATE.ai) STATE.ai.minTime = parseFloat(inpMin.value) * 1000; });
+    inpMax.addEventListener('input', () => { if (STATE.ai) STATE.ai.maxTime = parseFloat(inpMax.value) * 1000; });
 
-    function setActive(el) {
-      [btnWeak, btnMed, btnStrong].forEach(b => {
-        b.style.background = 'rgba(255,255,255,0.05)';
-        b.style.borderColor = 'rgba(255,255,255,0.15)';
-        b.style.color = '#f8fafc';
-      });
-      el.style.background = '#6366f1';
-      el.style.borderColor = '#6366f1';
-      el.style.color = '#fff';
-    }
+    btnClose.addEventListener('click', () => { if (panel) panel.remove(); panel = null; });
   }
 
-  function updateStatus(msg) {
-    const el = document.getElementById('ctn-status');
-    if (el) el.textContent = 'Status: ' + msg;
-  }
+  // ============================================================
+  // 10. INIT
+  // ============================================================
 
-  // Re-sync board periodically (chess.com updates DOM after each move)
-  setInterval(() => {
-    if (!STATE.engine || !STATE.autoMove) return;
-    const board = syncBoardFromDOM();
-    if (board) {
-      // Only sync if different
-      let same = true;
-      for (let i = 0; i < 64; i++) {
-        if (STATE.engine.board[i] !== board[i]) { same = false; break; }
-      }
-      if (!same) {
-        STATE.engine.board = board;
-        // Switch side to move based on chess.com (rough heuristic)
-        STATE.engine.side = STATE.engine.side === 'w' ? 'b' : 'w';
-      }
+  async function init() {
+    try {
+      await injectScript('chess.js');
+      await injectScript('ai.js');
+      await injectScript('anti-cheat.js');
+      await injectScript('elo.js');
+    } catch (e) {
+      console.error('[CTN] Failed to inject engine scripts', e);
+      setStatus('Engine load failed', 'bad');
+      return;
     }
-  }, 1500);
+
+    // Wait briefly for globals
+    await new Promise(r => setTimeout(r, 100));
+
+    STATE.engine = new window.Chess();
+    STATE.ai = new window.ChessAI({
+      strength: 'medium',
+      humanize: true,
+      minTime: 2000,
+      maxTime: 8000,
+      personality: 'balanced',
+    });
+    STATE.antiCheat = new window.AntiCheat({
+      enabled: true,
+      minMoveTime: 1000,
+      maxAccuracy: 88,
+      perfectStreakLimit: 8,
+    });
+    STATE.eloSys = new window.EloSystem({
+      startingElo: 1200,
+      kFactor: 32,
+    });
+
+    createPanel();
+    wirePanel();
+    setStatus('Engine ready — open a game', 'healthy');
+    setHint('Injecting into chess.com…');
+
+    // Main poll loop
+    setInterval(pollBoard, 800);
+  }
 
   init();
 
