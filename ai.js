@@ -11,7 +11,7 @@
    - Undetectable: no engine-perfect consistency
    ============================================================ */
 
-const PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const AI_PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 
 function fileOf(s) { return s % 8; }
 function rankOf(s) { return (s / 8) | 0; }
@@ -24,8 +24,8 @@ function colorOf(piece) {
 function scoreMove(chess, m) {
   let s = 0;
   if (m.capture !== ".") {
-    const victim = PIECE_VALUES[m.capture.toLowerCase()] || 0;
-    const attacker = PIECE_VALUES[m.fromPiece.toLowerCase()] || 0;
+    const victim = AI_PIECE_VALUES[m.capture.toLowerCase()] || 0;
+    const attacker = AI_PIECE_VALUES[m.fromPiece.toLowerCase()] || 0;
     s += 2000 + victim - attacker; // MVV-LVA
   }
   if (m.promotion) s += 1800;
