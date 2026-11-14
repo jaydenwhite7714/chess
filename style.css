@@ -253,9 +253,20 @@ body::before {
 
 .player-clock {
   font-family: "JetBrains Mono", monospace;
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 800;
   color: var(--primary);
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+  letter-spacing: 0.5px;
+}
+.player-clock.low-time {
+  color: var(--danger);
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+  animation: pulse-clock 1s infinite;
+}
+@keyframes pulse-clock {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .player-name {

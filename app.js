@@ -234,9 +234,14 @@
     const hotseatBot = gameMode === "pvp" ? false : botOn;
 
     if (botOn) {
-      const delay = ai.delay();
-      ui.setFooter("Bot thinking...", "Anti-cheat: active");
+      // Stealthy, human-like delay so the bot stays undetectable
+      const delay = antiCheat.stealthDelay({
+        minTime: settings.get("moveTimeMin") * 1000,
+        maxTime: settings.get("moveTimeMax") * 1000
+      });
+      ui.setFooter("Bot thinking...", "Anti-cheat: active · undetectable mode");
       autoMoveTimer = setTimeout(() => {
+        antiCheat.startMove();
         const pick = ai.pick(chess);
         if (pick && pick.move) {
           // Anti-cheat validates the move too (keeps everything consistent)

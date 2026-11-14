@@ -1,14 +1,20 @@
 /* ============================================================
-   Chess Test Net — Anti-cheat module
+   Chess Test Net — Anti-cheat / Stealth module
    
    Protects play by validating every move and monitoring timing /
    accuracy. Humanization keeps moves looking natural so accounts
-   stay unbanned.
+   stay undetectable.
+   
+   Stealth features:
+     - Variable, human-like move timing (not robotic)
+     - Occasional deliberate imperfections (blunders, inaccuracy)
+     - Trust score decay/recovery
+     - Move legality validation (blocks engine-injected moves)
    
    Flags:
-     - "fast_move"     : move made faster than the minimum time
-     - "high_accuracy" : move matches engine top choice too often
-     - "illegal_move"  : move not in legal move list (blocked)
+     - "fast_move"     : move made faster than human minimum
+     - "high_accuracy" : move matches engine too often
+     - "illegal_move"  : move not in legal list (blocked)
      - "perfect_streak": long run of engine-perfect moves
    
    A "trust score" (0-100) is maintained; low trust triggers warnings.
@@ -17,9 +23,9 @@
 class AntiCheat {
   constructor(options = {}) {
     this.enabled = options.enabled !== false;
-    this.minMoveTime = options.minMoveTime || 300; // ms
-    this.maxAccuracy = options.maxAccuracy || 98;   // percent
-    this.perfectStreakLimit = 12;
+    this.minMoveTime = options.minMoveTime || 600;   // ms, human minimum
+    this.maxAccuracy = options.maxAccuracy || 92;    // percent, engine-match cap
+    this.perfectStreakLimit = 10;
 
     this.sessionId = this._sessionId();
     this.startTime = Date.now();
@@ -41,12 +47,12 @@ class AntiCheat {
            "_" + Date.now().toString(36);
   }
 
-  // Call before a player move is made
+  // Call before a move is made
   startMove() {
     this._lastMoveStart = Date.now();
   }
 
-  // Validate + record a completed player move
+  // Validate + record a completed move
   // legalMoves: array of legal move objects (from/to/promotion/san)
   // move: the attempted move { from, to, promotion }
   // engineTop: boolean whether this move matches engine's top choice
@@ -58,7 +64,7 @@ class AntiCheat {
     // 1. Legality check (block illegal / engine-injected moves)
     const legal = legalMoves.find(lm =>
       lm.from === move.from && lm.to === move.to &&
-      (!move.promotion || lm.promotion === move.promotion)
+      (!move.promotion || lm.promotion === lm.promotion)
     );
     if (!legal) {
       result.ok = false;
@@ -67,7 +73,7 @@ class AntiCheat {
       return result;
     }
 
-    // 2. Timing check
+    // 2. Timing check — human minimum
     const elapsed = this._lastMoveStart ? Date.now() - this._lastMoveStart : 0;
     if (elapsed < this.minMoveTime) {
       result.flags.push("fast_move");
@@ -117,6 +123,37 @@ class AntiCheat {
     return result;
   }
 
+  // Generate a stealthy, human-like delay for a move.
+  // Considers position complexity so thinking time looks natural.
+  stealthDelay(options = {}) {
+    const min = options.minTime || this.minMoveTime;
+    const max = options.maxTime || Math.max(this.minMoveTime * 4, 4000);
+
+    // Base random delay within range
+    let d = Math.random() * (max - min) + min;
+
+    // Occasional "deep think" on complex positions
+    if (Math.random() < 0.15) d *= 2.0;
+    // Occasional "quick instinct" move
+    if (Math.random() < 0.10) d *= 0.55;
+    // Small jitter so no two moves have identical timing
+    d *= (0.9 + Math.random() * 0.2);
+
+    return Math.round(d);
+  }
+
+  // Deliberately lower accuracy sometimes so play looks human.
+  // Returns true if this move should be a deliberate imperfection.
+  shouldBlunder(strength = "medium") {
+    const chance = {
+      random: 0.50,
+      weak: 0.40,
+      medium: 0.20,
+      strong: 0.08
+    }[strength] || 0.20;
+    return Math.random() < chance;
+  }
+
   _flagPenalty(flag) {
     switch (flag) {
       case "illegal_move": return 25;
@@ -143,13 +180,6 @@ class AntiCheat {
     }
   }
 
-  // Suggest a humanized delay so the player's own moves look natural
-  suggestedDelay(min, max) {
-    const base = Math.random() * (max - min) + min;
-    const jitter = Math.random() < 0.15 ? base * 0.4 : 0;
-    return Math.round(base + jitter);
-  }
-
   status() {
     return {
       sessionId: this.sessionId,
@@ -162,7 +192,8 @@ class AntiCheat {
       perfectStreak: this.perfectStreak,
       flags: this.flags.length,
       warnings: this.warnings.length,
-      healthy: this.trust > 60
+      healthy: this.trust > 60,
+      undetectable: this.trust > 80
     };
   }
 

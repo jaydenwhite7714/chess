@@ -177,6 +177,7 @@ class UI {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     el.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    el.classList.toggle("low-time", seconds > 0 && seconds <= 30);
   }
 
   setTurn(color) {

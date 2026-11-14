@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Test Net",
+  "version": "1.1.0",
+  "description": "Anti-cheat protected chess with auto-move, humanized timing, and Elo ratings. Load as an unpacked extension.",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Chess Test Net",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "permissions": ["storage"],
+  "host_permissions": [],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

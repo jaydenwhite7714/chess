@@ -1,7 +1,7 @@
 /* ============================================================
    Chess Test Net — AI / auto-move module
    - Picks a move based on strength (random / weak / medium / strong)
-   - Humanization: occasional suboptimal moves + natural timing
+   - Humanization: occasional suboptimal moves + natural timing (stealth)
    - Returns { move, delayMs }
    ============================================================ */
 
@@ -54,11 +54,12 @@ class ChessAI {
     }[this.strength] || 0.15;
   }
 
-  // Human-like delay in ms within [minTime, maxTime], with occasional variance
+  // Human-like delay in ms within [minTime, maxTime], with stealth variance
   delay() {
     let d = Math.random() * (this.maxTime - this.minTime) + this.minTime;
     if (Math.random() < 0.12) d *= 2.2;   // deep think
     if (Math.random() < 0.08) d *= 0.5;   // quick instinct
+    d *= (0.88 + Math.random() * 0.24);   // jitter so no two moves match
     return Math.round(d);
   }
 
@@ -86,7 +87,7 @@ class ChessAI {
     const maxScore = Math.max(...scored.map(s => s.score));
     const best = scored.filter(s => s.score === maxScore);
 
-    // Humanization: occasionally play a non-best move (looks natural, avoids bans)
+    // Humanization: occasionally play a non-best move (looks natural, stealth)
     if (this.humanize && Math.random() < this.mistakeChance && scored.length > 1) {
       const nonBest = scored.filter(s => s.score < maxScore);
       if (nonBest.length) {
